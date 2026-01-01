@@ -12,7 +12,7 @@ static lwmb_err_t bl_modbus_callback(uint8_t slave_addr, uint8_t func_code,
 {
     bl_proto_request_t req;
     bl_proto_response_t resp;
-    int result = BL_ERROR;
+    lwmb_err_t result = LWMB_OK;
 
     req.slave_addr = slave_addr;
     req.func_code = func_code;

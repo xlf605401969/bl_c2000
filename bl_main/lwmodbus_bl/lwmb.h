@@ -7,6 +7,8 @@
 #define LWMB_VER_MAJOR 1
 #define LWMB_VER_MINOR 0
 
+#define LWMB_FRAME_MODE 0
+
 // 模式配置 - 简化为直接定义
 #ifndef LWMB_FRAME_MODE
 #define LWMB_FRAME_MODE 1 // 1:帧模式 0:流模式
@@ -28,6 +30,17 @@ typedef enum
     STATE_RX,
     STATE_RX_END,
 } lwmb_state_t;
+
+// 错误码定义
+typedef enum
+{
+    LWMB_OK = 0,
+    LWMB_OK_NO_REPLY,
+    LWMB_ERR_TIMEOUT,
+    LWMB_ERR_CRC,
+    LWMB_ERR_FRAME,
+    LWMB_ERR_FUNC
+} lwmb_err_t;
 
 // 自定义功能码回调函数类型定义
 typedef lwmb_err_t (*lwmb_func_callback_t)(uint8_t addr, uint8_t func, uint8_t *data, uint16_t len, uint8_t *reply_data, uint16_t *reply_len);
@@ -60,17 +73,6 @@ void lwmb_init(lwmb_func_callback_t func_callback);
 void lwmb_start();
 
 extern lwmb_context ctx;
-
-// 错误码定义
-typedef enum
-{
-    LWMB_OK = 0,
-    LWMB_OK_NO_REPLY,
-    LWMB_ERR_TIMEOUT,
-    LWMB_ERR_CRC,
-    LWMB_ERR_FRAME,
-    LWMB_ERR_FUNC
-} lwmb_err_t;
 
 // 初始化Modbus协议栈，并设置自定义功能码回调函数
 void lwmb_init(lwmb_func_callback_t func_callback);

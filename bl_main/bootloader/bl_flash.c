@@ -51,6 +51,73 @@ static bl_flash_sector_info_t default_sectors[] = {
 extern const uint8_t BL_FLASH_SECTOR_COUNT = sizeof(default_sectors) / sizeof(default_sectors[0]);
 
 /**
+ * @brief 设置指定块为脏
+ * @param cache 缓存指针
+ * @param block_idx 块索引(0 ~ BL_FLASH_CACHE_BLOCK_COUNT-1)
+ *
+ * 脏位图使用位操作，每一位代表一个块的状态：
+ * - 第0位：块0
+ * - 第1位：块1
+ * - ...
+ * - 第N位：块N
+ */
+static void bl_flash_cache_set_block_dirty(bl_flash_cache_t *cache, uint32_t block_idx)
+{
+    if (block_idx >= BL_FLASH_CACHE_BLOCK_COUNT) {
+        return;
+    }
+
+    uint32_t byte_idx = block_idx / 8;
+    uint32_t bit_idx = block_idx % 8;
+
+    cache->dirty_bitmap[byte_idx] |= (1 << bit_idx);
+}
+
+/**
+ * @brief 清除指定块的脏标记
+ * @param cache 缓存指针
+ * @param block_idx 块索引
+ */
+static void bl_flash_cache_clear_block_dirty(bl_flash_cache_t *cache, uint32_t block_idx)
+{
+    if (block_idx >= BL_FLASH_CACHE_BLOCK_COUNT) {
+        return;
+    }
+
+    uint32_t byte_idx = block_idx / 8;
+    uint32_t bit_idx = block_idx % 8;
+
+    cache->dirty_bitmap[byte_idx] &= ~(1 << bit_idx);
+}
+
+/**
+ * @brief 检查指定块是否为脏
+ * @param cache 缓存指针
+ * @param block_idx 块索引
+ * @return 脏返回true，否则返回false
+ */
+static bool bl_flash_cache_is_block_dirty(bl_flash_cache_t *cache, uint32_t block_idx)
+{
+    if (block_idx >= BL_FLASH_CACHE_BLOCK_COUNT) {
+        return false;
+    }
+
+    uint32_t byte_idx = block_idx / 8;
+    uint32_t bit_idx = block_idx % 8;
+
+    return (cache->dirty_bitmap[byte_idx] & (1 << bit_idx)) != 0;
+}
+
+/**
+ * @brief 清除所有脏标记
+ * @param cache 缓存指针
+ */
+static void bl_flash_cache_clear_all_dirty(bl_flash_cache_t *cache)
+{
+    memset(cache->dirty_bitmap, 0, BL_FLASH_CACHE_DIRTY_BITMAP_SIZE * sizeof(uint16_t));
+}
+
+/**
  * @brief 初始化Flash驱动
  * @param flash Flash设备指针
  * @return 成功返回BL_SUCCESS，失败返回错误码
@@ -290,73 +357,6 @@ int bl_flash_cache_init(bl_flash_t *flash)
     flash->cache.state = BL_FLASH_CACHE_STATE_IDLE;
 
     return BL_SUCCESS;
-}
-
-/**
- * @brief 设置指定块为脏
- * @param cache 缓存指针
- * @param block_idx 块索引(0 ~ BL_FLASH_CACHE_BLOCK_COUNT-1)
- *
- * 脏位图使用位操作，每一位代表一个块的状态：
- * - 第0位：块0
- * - 第1位：块1
- * - ...
- * - 第N位：块N
- */
-static void bl_flash_cache_set_block_dirty(bl_flash_cache_t *cache, uint32_t block_idx)
-{
-    if (block_idx >= BL_FLASH_CACHE_BLOCK_COUNT) {
-        return;
-    }
-    
-    uint32_t byte_idx = block_idx / 8;
-    uint32_t bit_idx = block_idx % 8;
-    
-    cache->dirty_bitmap[byte_idx] |= (1 << bit_idx);
-}
-
-/**
- * @brief 清除指定块的脏标记
- * @param cache 缓存指针
- * @param block_idx 块索引
- */
-static void bl_flash_cache_clear_block_dirty(bl_flash_cache_t *cache, uint32_t block_idx)
-{
-    if (block_idx >= BL_FLASH_CACHE_BLOCK_COUNT) {
-        return;
-    }
-    
-    uint32_t byte_idx = block_idx / 8;
-    uint32_t bit_idx = block_idx % 8;
-    
-    cache->dirty_bitmap[byte_idx] &= ~(1 << bit_idx);
-}
-
-/**
- * @brief 检查指定块是否为脏
- * @param cache 缓存指针
- * @param block_idx 块索引
- * @return 脏返回true，否则返回false
- */
-static bool bl_flash_cache_is_block_dirty(bl_flash_cache_t *cache, uint32_t block_idx)
-{
-    if (block_idx >= BL_FLASH_CACHE_BLOCK_COUNT) {
-        return false;
-    }
-    
-    uint32_t byte_idx = block_idx / 8;
-    uint32_t bit_idx = block_idx % 8;
-    
-    return (cache->dirty_bitmap[byte_idx] & (1 << bit_idx)) != 0;
-}
-
-/**
- * @brief 清除所有脏标记
- * @param cache 缓存指针
- */
-static void bl_flash_cache_clear_all_dirty(bl_flash_cache_t *cache)
-{
-    memset(cache->dirty_bitmap, 0, BL_FLASH_CACHE_DIRTY_BITMAP_SIZE);
 }
 
 /**

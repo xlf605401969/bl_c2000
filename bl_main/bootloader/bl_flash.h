@@ -87,7 +87,7 @@ extern "C"
     {
         uint32_t base_addr;                                     /**< 缓存基地址(16位字地址) */
         uint16_t data[BL_FLASH_CACHE_PAGE_SIZE];                /**< 缓存数据区(以16位字为单位) */
-        uint8_t dirty_bitmap[BL_FLASH_CACHE_DIRTY_BITMAP_SIZE]; /**< 脏位图 */
+        uint16_t dirty_bitmap[BL_FLASH_CACHE_DIRTY_BITMAP_SIZE]; /**< 脏位图 */
         bl_flash_cache_state_t state;                           /**< 缓存状态 */
     } bl_flash_cache_t;
 

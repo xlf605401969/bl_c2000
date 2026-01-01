@@ -1,6 +1,7 @@
 #include "bl_protocol.h"
 #include <string.h>
 
+static int bl_proto_read_app_info(bl_proto_t *proto, bl_app_info_t *app_info);
 
 int bl_proto_init(bl_proto_t *proto, bl_flash_t *flash)
 {
@@ -45,8 +46,8 @@ static lwmb_err_t bl_proto_handle_read_registers(bl_proto_t *proto, const bl_pro
     }
 
     // 解析起始地址和寄存器数量
-    uint16_t start_addr = (req->data[0] << 8) | req->data[1];
-    uint16_t reg_count = (req->data[2] << 8) | req->data[3];
+    uint16_t start_addr = ((uint16_t)req->data[0] << 8) | req->data[1];
+    uint16_t reg_count = ((uint16_t)req->data[2] << 8) | req->data[3];
 
     if (reg_count > 64)
     {
@@ -68,7 +69,7 @@ static lwmb_err_t bl_proto_handle_read_registers(bl_proto_t *proto, const bl_pro
             reg_value = 0xBEEF;
             break;
         case 0xF001: // BL_VERSION
-            reg_value = (BL_PROTO_MAJOR_VERSION << 8) | BL_PROTO_MINOR_VERSION;
+            reg_value = ((uint16_t)BL_PROTO_MAJOR_VERSION << 8) | BL_PROTO_MINOR_VERSION;
             break;
         case 0xF002: // BL_STATE
             reg_value = (uint16_t)proto->state;
@@ -139,57 +140,6 @@ static lwmb_err_t bl_proto_handle_read_registers(bl_proto_t *proto, const bl_pro
 }
 
 /**
- * @brief 处理所有协议请求的主函数
- * @param proto 协议处理器指针
- * @param req 请求数据
- * @param resp 响应数据
- * @return 帧数据错误返回LWMB_ERR_FRAME，协议层正确但执行操作有问题返回LWMB_OK
- *
- * 根据功能码分发到相应的处理函数
- * 帧数据错误：参数检查失败
- * 协议错误：不支持的功能码
- */
-lwmb_err_t bl_proto_process_request(bl_proto_t *proto, const bl_proto_request_t *req, bl_proto_response_t *resp)
-{
-    memset(resp, 0, sizeof(bl_proto_response_t));
-    resp->slave_addr = req->slave_addr;
-    resp->func_code = req->func_code;
-    resp->status = BL_PROTO_STATUS_SUCCESS;
-
-    switch (req->func_code)
-    {
-    case BL_PROTO_FUNC_READ_INPUT:
-        return bl_proto_handle_read_registers(proto, req, resp);
-
-    case BL_PROTO_FUNC_ENTER_BL:
-        return bl_proto_handle_enter_bl(proto, resp);
-
-    case BL_PROTO_FUNC_ERASE:
-        return bl_proto_handle_erase(proto, req, resp);
-
-    case BL_PROTO_FUNC_WRITE:
-        return bl_proto_handle_write(proto, req, resp);
-
-    case BL_PROTO_FUNC_FLUSH_CACHE:
-        return bl_proto_handle_flush_cache(proto, req, resp);
-
-    case BL_PROTO_FUNC_JUMP:
-        return bl_proto_handle_jump(proto, req, resp);
-
-    case BL_PROTO_FUNC_RESET:
-        return bl_proto_handle_reset(proto, resp);
-
-    case BL_PROTO_FUNC_FINISH_APP_WRITE:
-        return bl_proto_handle_finish_app_write(proto, req, resp);
-
-    default:
-        resp->status = BL_PROTO_STATUS_ERROR;
-        resp->data_len = 0;
-        return LWMB_OK; // 协议层正确，但功能码不支持
-    }
-}
-
-/**
  * @brief 处理进入引导加载程序模式请求(功能码0x65)
  * @param proto 协议处理器指针
  * @param resp 响应数据
@@ -229,10 +179,10 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
         return LWMB_ERR_FRAME;
     }
 
-    uint32_t start_addr = (req->data[0] << 24) | (req->data[1] << 16) |
-                          (req->data[2] << 8) | req->data[3];
-    uint32_t length = (req->data[4] << 24) | (req->data[5] << 16) |
-                      (req->data[6] << 8) | req->data[7];
+    uint32_t start_addr = ((uint32_t)req->data[0] << 24) | ((uint32_t)req->data[1] << 16) |
+                          ((uint32_t)req->data[2] << 8) | req->data[3];
+    uint32_t length = ((uint32_t)req->data[4] << 24) | ((uint32_t)req->data[5] << 16) |
+                      ((uint32_t)req->data[6] << 8) | req->data[7];
 
     if (start_addr == 0xFFFFFFFF && length == 0xFFFFFFFF)
     {
@@ -293,9 +243,9 @@ static lwmb_err_t bl_proto_handle_write(bl_proto_t *proto, const bl_proto_reques
     }
 
     // 解析地址和长度参数
-    uint32_t addr = (req->data[0] << 24) | (req->data[1] << 16) |
-                    (req->data[2] << 8) | req->data[3];
-    uint16_t byte_length = (req->data[4] << 8) | req->data[5];
+    uint32_t addr = ((uint32_t)req->data[0] << 24) | ((uint32_t)req->data[1] << 16) |
+                    ((uint32_t)req->data[2] << 8) | req->data[3];
+    uint16_t byte_length = ((uint16_t)req->data[4] << 8) | req->data[5];
     const uint8_t *byte_data = &req->data[6];
 
     // 检查地址范围是否有效
@@ -314,7 +264,7 @@ static lwmb_err_t bl_proto_handle_write(bl_proto_t *proto, const bl_proto_reques
     // 复制数据并处理字节序
     for (uint16_t i = 0; i < word_length; i++)
     {
-        uint16_t word = byte_data[i * 2] << 8;
+        uint16_t word = (uint16_t)byte_data[i * 2] << 8;
         if (i * 2 + 1 < byte_length)
         {
             word |= byte_data[i * 2 + 1];
@@ -360,8 +310,8 @@ static lwmb_err_t bl_proto_handle_jump(bl_proto_t *proto, const bl_proto_request
         return LWMB_ERR_FRAME;
     }
 
-    uint32_t jump_addr = (req->data[0] << 24) | (req->data[1] << 16) |
-                         (req->data[2] << 8) | req->data[3];
+    uint32_t jump_addr = ((uint32_t)req->data[0] << 24) | ((uint32_t)req->data[1] << 16) |
+                         ((uint32_t)req->data[2] << 8) | req->data[3];
 
     if (jump_addr == 0xFFFFFFFF)
     {
@@ -486,13 +436,13 @@ static lwmb_err_t bl_proto_handle_finish_app_write(bl_proto_t *proto, const bl_p
     // 解析请求参数
     uint16_t major_version = req->data[0];
     uint16_t minor_version = req->data[1];
-    uint32_t build_version = (req->data[2] << 8) | req->data[3];
-    uint32_t app_length = (req->data[4] << 24) | (req->data[5] << 16) |
-                          (req->data[6] << 8) | req->data[7];
-    uint32_t crc32 = (req->data[8] << 24) | (req->data[9] << 16) |
-                     (req->data[10] << 8) | req->data[11];
-    uint32_t timestamp = (req->data[12] << 24) | (req->data[13] << 16) |
-                         (req->data[14] << 8) | req->data[15];
+    uint32_t build_version = ((uint32_t)req->data[2] << 8) | req->data[3];
+    uint32_t app_length = ((uint32_t)req->data[4] << 24) | ((uint32_t)req->data[5] << 16) |
+                          ((uint32_t)req->data[6] << 8) | req->data[7];
+    uint32_t crc32 = ((uint32_t)req->data[8] << 24) | ((uint32_t)req->data[9] << 16) |
+                     ((uint32_t)req->data[10] << 8) | req->data[11];
+    uint32_t timestamp = ((uint32_t)req->data[12] << 24) | ((uint32_t)req->data[13] << 16) |
+                         ((uint32_t)req->data[14] << 8) | req->data[15];
 
     // 创建app_info结构体
     bl_app_info_t app_info;
@@ -528,4 +478,55 @@ static lwmb_err_t bl_proto_handle_reset(bl_proto_t *proto, bl_proto_response_t *
     resp->data_len = 0;
 
     return LWMB_OK;
+}
+
+/**
+ * @brief 处理所有协议请求的主函数
+ * @param proto 协议处理器指针
+ * @param req 请求数据
+ * @param resp 响应数据
+ * @return 帧数据错误返回LWMB_ERR_FRAME，协议层正确但执行操作有问题返回LWMB_OK
+ *
+ * 根据功能码分发到相应的处理函数
+ * 帧数据错误：参数检查失败
+ * 协议错误：不支持的功能码
+ */
+lwmb_err_t bl_proto_process_request(bl_proto_t *proto, const bl_proto_request_t *req, bl_proto_response_t *resp)
+{
+    memset(resp, 0, sizeof(bl_proto_response_t));
+    resp->slave_addr = req->slave_addr;
+    resp->func_code = req->func_code;
+    resp->status = BL_PROTO_STATUS_SUCCESS;
+
+    switch (req->func_code)
+    {
+    case BL_PROTO_FUNC_READ_INPUT:
+        return bl_proto_handle_read_registers(proto, req, resp);
+
+    case BL_PROTO_FUNC_ENTER_BL:
+        return bl_proto_handle_enter_bl(proto, resp);
+
+    case BL_PROTO_FUNC_ERASE:
+        return bl_proto_handle_erase(proto, req, resp);
+
+    case BL_PROTO_FUNC_WRITE:
+        return bl_proto_handle_write(proto, req, resp);
+
+    case BL_PROTO_FUNC_FLUSH_CACHE:
+        return bl_proto_handle_flush_cache(proto, req, resp);
+
+    case BL_PROTO_FUNC_JUMP:
+        return bl_proto_handle_jump(proto, req, resp);
+
+    case BL_PROTO_FUNC_RESET:
+        return bl_proto_handle_reset(proto, resp);
+
+    case BL_PROTO_FUNC_FINISH_APP_WRITE:
+        return bl_proto_handle_finish_app_write(proto, req, resp);
+
+    default:
+        resp->status = BL_PROTO_STATUS_ERROR;
+        resp->data_len = 0;
+        return LWMB_OK; // 协议层正确，但功能码不支持
+    }
 }
