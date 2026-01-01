@@ -10,6 +10,9 @@
         "xmemory": "c",
         "type_traits": "c",
         "cstddef": "c",
-        "limits": "c"
+        "limits": "c",
+        "bl_common.h": "c",
+        "bl_main.h": "c",
+        "bl_protocol.h": "c"
     }
 }

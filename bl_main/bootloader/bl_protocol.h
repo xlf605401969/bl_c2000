@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "bl.h"
+#include "bl_common.h"
 #include "bl_flash.h"
 #include "bl_main.h"
 #include "lwmb.h"
@@ -20,6 +20,9 @@
 extern "C"
 {
 #endif
+
+#define BL_PROTO_MAJOR_VERSION 0x01        /**< 协议主版本号 */
+#define BL_PROTO_MINOR_VERSION 0x00        /**< 协议次版本号 */
 
 #define BL_APP_INFO_SIZE 64                                     /**< app_info结构体大小(按地址) */
 #define BL_APP_INFO_ADDR (BL_APP_START_ADDR - BL_APP_INFO_SIZE) /**< app_info结构体存储地址 */

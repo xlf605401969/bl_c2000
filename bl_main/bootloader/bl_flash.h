@@ -12,7 +12,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "bl.h"
+#include "bl_common.h"
 
 #ifdef __cplusplus
 extern "C"
