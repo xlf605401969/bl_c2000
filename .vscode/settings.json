@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "algorithm": "c",
+        "xutility": "c",
+        "bl.h": "c",
+        "bl_flash.h": "c",
+        "tuple": "cpp",
+        "initializer_list": "c",
+        "compare": "c",
+        "xmemory": "c",
+        "type_traits": "c",
+        "cstddef": "c",
+        "limits": "c"
+    }
+}

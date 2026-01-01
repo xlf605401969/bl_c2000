@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include "bl_flash.h"
 #include "bl_protocol.h"
-#include "bl_session.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +25,6 @@ typedef enum {
 typedef struct {
     bl_flash_t            flash;
     bl_proto_t            proto;
-    bl_session_manager_t  session;
     bl_main_state_t       state;
     uint32_t              system_tick;
     bool                  initialized;

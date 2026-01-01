@@ -53,7 +53,7 @@ extern const uint8_t BL_FLASH_SECTOR_COUNT = sizeof(default_sectors) / sizeof(de
 /**
  * @brief 初始化Flash驱动
  * @param flash Flash设备指针
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  *
  * 初始化流程：
  * 1. 参数校验
@@ -65,12 +65,16 @@ extern const uint8_t BL_FLASH_SECTOR_COUNT = sizeof(default_sectors) / sizeof(de
 int bl_flash_init(bl_flash_t *flash)
 {
     if (flash == NULL) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     memset(flash, 0, sizeof(bl_flash_t));
 
-    memcpy(flash->sectors, default_sectors, sizeof(default_sectors));
+    flash->sectors = default_sectors;
+    flash->size = 0;
+    for (int i = 0; i < BL_FLASH_SECTOR_COUNT; i++) {
+        flash->size += default_sectors[i].size;
+    }
 
     Fapi_StatusType status;
     Fapi_FlashBankType bank = Fapi_FlashBank0;
@@ -88,33 +92,33 @@ int bl_flash_init(bl_flash_t *flash)
 /**
  * @brief 反初始化Flash驱动
  * @param flash Flash设备指针
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  *
  * 确保在关闭前将所有缓存数据写回Flash
  */
 int bl_flash_deinit(bl_flash_t *flash)
 {
     if (flash == NULL || !flash->initialized) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     bl_flash_cache_flush(flash);
 
     flash->initialized = false;
 
-    return BL_FLASH_SUCCESS;
+    return BL_SUCCESS;
 }
 
 /**
  * @brief 擦除指定扇区
  * @param flash Flash设备指针
  * @param sector_num 物理扇区号(1-13)
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  */
 int bl_flash_erase_sector(bl_flash_t *flash, uint16_t sector_num)
 {
     if (flash == NULL || !flash->initialized) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     // 查找对应的扇区信息
@@ -127,33 +131,23 @@ int bl_flash_erase_sector(bl_flash_t *flash, uint16_t sector_num)
     }
 
     if (info == NULL) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     return bl_flash_erase_range(flash, info->start_address, info->size);
 }
 
 /**
- * @brief 擦除指定地址范围
- * @param flash Flash设备指针
- * @param addr 起始地址(字节地址)
- * @param size 擦除大小(以16位字为单位)
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
- *
- * 擦除以扇区为单位进行，按4KB(2048字)步进循环调用擦除命令。
- * 擦除前会使缓存失效。
- */
-/**
  * @brief 擦除指定地址范围内的Flash
  * @param flash Flash设备指针
  * @param addr 起始地址(16位字地址)
  * @param size 擦除大小(以16位字为单位)
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  */
 int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size)
 {
     if (flash == NULL || !flash->initialized) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     // 计算结束地址(16位字地址)
@@ -185,7 +179,7 @@ int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size)
         }
     }
 
-    return BL_FLASH_SUCCESS;
+    return BL_SUCCESS;
 }
 
 /**
@@ -194,7 +188,7 @@ int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size)
  * @param addr 读取起始地址(16位字地址)
  * @param data 读取数据缓冲区指针
  * @param size 读取数据大小(以16位字为单位)
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  *
  * 读取操作直接访问Flash，不经过缓存。
  * 直接使用memcpy进行数据复制。
@@ -202,12 +196,12 @@ int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size)
 int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint16_t *data, uint32_t size)
 {
     if (flash == NULL || !flash->initialized || data == NULL) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     memcpy(data, (uint16_t *)addr, size * sizeof(uint16_t));
 
-    return BL_FLASH_SUCCESS;
+    return BL_SUCCESS;
 }
 
 /**
@@ -216,7 +210,7 @@ int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint16_t *data, uint32_t siz
  * @param addr 写入起始地址(16位字地址)
  * @param data 写入数据缓冲区指针
  * @param size 写入数据大小(以16位字为单位)
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  *
  * 写入流程：
  * 1. 计算当前地址所在的缓存页地址(page_addr)
@@ -239,7 +233,7 @@ int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint16_t *data, uint32_t siz
 int bl_flash_write(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint32_t size)
 {
     if (flash == NULL || !flash->initialized || data == NULL) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     uint32_t write_offset = 0;
@@ -278,24 +272,24 @@ int bl_flash_write(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint3
         remaining -= write_size;
     }
 
-    return BL_FLASH_SUCCESS;
+    return BL_SUCCESS;
 }
 
 /**
  * @brief 初始化Flash缓存
  * @param flash Flash设备指针
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  */
 int bl_flash_cache_init(bl_flash_t *flash)
 {
     if (flash == NULL) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     memset(&flash->cache, 0, sizeof(bl_flash_cache_t));
     flash->cache.state = BL_FLASH_CACHE_STATE_IDLE;
 
-    return BL_FLASH_SUCCESS;
+    return BL_SUCCESS;
 }
 
 /**
@@ -368,7 +362,7 @@ static void bl_flash_cache_clear_all_dirty(bl_flash_cache_t *cache)
 /**
  * @brief 将缓存中所有脏块写回Flash
  * @param flash Flash设备指针
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  *
  * 写回流程：
  * 1. 遍历所有块，检查脏位图
@@ -384,11 +378,11 @@ static void bl_flash_cache_clear_all_dirty(bl_flash_cache_t *cache)
 int bl_flash_cache_flush(bl_flash_t *flash)
 {
     if (flash == NULL || !flash->initialized) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     if (flash->cache.state != BL_FLASH_CACHE_STATE_DIRTY) {
-        return BL_FLASH_SUCCESS;
+        return BL_SUCCESS;
     }
 
     flash->cache.state = BL_FLASH_CACHE_STATE_FLUSHING;
@@ -431,20 +425,20 @@ int bl_flash_cache_flush(bl_flash_t *flash)
     flash->cache.state = BL_FLASH_CACHE_STATE_IDLE;
     bl_flash_cache_clear_all_dirty(&flash->cache);
 
-    return BL_FLASH_SUCCESS;
+    return BL_SUCCESS;
 }
 
 /**
  * @brief 使缓存失效
  * @param flash Flash设备指针
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  *
  * 在擦除操作前调用，确保不会有脏数据残留。
  */
 int bl_flash_cache_invalidate(bl_flash_t *flash)
 {
     if (flash == NULL || !flash->initialized) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     bl_flash_cache_flush(flash);
@@ -453,7 +447,7 @@ int bl_flash_cache_invalidate(bl_flash_t *flash)
     flash->cache.base_addr = 0;
     bl_flash_cache_clear_all_dirty(&flash->cache);
 
-    return BL_FLASH_SUCCESS;
+    return BL_SUCCESS;
 }
 
 /**
@@ -462,12 +456,12 @@ int bl_flash_cache_invalidate(bl_flash_t *flash)
  * @param addr 验证起始地址(16位字地址)
  * @param data 验证数据缓冲区指针
  * @param size 验证数据大小(以16位字为单位)
- * @return 成功返回BL_FLASH_SUCCESS，失败返回错误码
+ * @return 成功返回BL_SUCCESS，失败返回错误码
  */
 int bl_flash_verify(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint32_t size)
 {
     if (flash == NULL || !flash->initialized || data == NULL) {
-        return BL_FLASH_INVALID_PARAM;
+        return BL_INVALID_PARAM;
     }
 
     // 从Flash中读取数据进行比较
@@ -478,7 +472,7 @@ int bl_flash_verify(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint
         }
     }
 
-    return BL_FLASH_SUCCESS;
+    return BL_SUCCESS;
 }
 
 /**
