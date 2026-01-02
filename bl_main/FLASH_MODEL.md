@@ -48,9 +48,11 @@ typedef struct {
 ### Flash设备结构 (bl_flash_t)
 ```c
 typedef struct {
-    bl_flash_sector_info_t  sectors[BL_FLASH_SECTOR_COUNT];  // 扇区信息数组
-    bl_flash_cache_t        cache;                          // 写缓存
-    bool                    initialized;                    // 初始化标志
+    bl_flash_sector_info_t  *sectors;  // 扇区信息数组指针
+    int32_t                 sector_count;  // 扇区数量
+    bl_flash_cache_t        cache;     // 写缓存
+    uint32_t                size;      // 总大小(以16位字为单位)
+    bool                    initialized;  // 初始化标志
 } bl_flash_t;
 ```
 
@@ -63,14 +65,13 @@ typedef struct {
 
 ### 缓存块大小配置
 ```c
-#define BL_FLASH_CACHE_BLOCK_SIZE      16   // 缓存块大小(以16位字为单位)
+#define BL_FLASH_CACHE_BLOCK_SIZE      8   // 缓存块大小(以16位字为单位)
 ```
 
 ### 自动计算的常量
 ```c
-extern const uint8_t BL_FLASH_SECTOR_COUNT;  // 可操作的扇区数量(自动计算)
 #define BL_FLASH_CACHE_BLOCK_COUNT     (BL_FLASH_CACHE_PAGE_SIZE / BL_FLASH_CACHE_BLOCK_SIZE)
-#define BL_FLASH_CACHE_DIRTY_BITMAP_SIZE ((BL_FLASH_CACHE_BLOCK_COUNT + 7) / 8)
+#define BL_FLASH_CACHE_DIRTY_BITMAP_SIZE ((BL_FLASH_CACHE_BLOCK_COUNT + 15) / 16)
 ```
 
 ## C2000架构特性
@@ -114,7 +115,6 @@ int bl_flash_deinit(bl_flash_t *flash);
 ```c
 int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint16_t *data, uint32_t size);
 int bl_flash_write(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint32_t size);
-int bl_flash_verify(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint32_t size);
 ```
 
 ### 擦除操作
@@ -126,7 +126,6 @@ int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size);
 ### 缓存管理
 ```c
 int bl_flash_cache_flush(bl_flash_t *flash);
-int bl_flash_cache_invalidate(bl_flash_t *flash);
 ```
 
 ### 扇区信息查询
@@ -220,15 +219,14 @@ typedef enum {
 ## 错误码定义
 
 ```c
-#define BL_FLASH_SUCCESS           0   // 操作成功
-#define BL_FLASH_ERROR             -1  // 通用错误
-#define BL_FLASH_INVALID_PARAM     -2  // 无效参数
-#define BL_FLASH_WRITE_PROTECTED   -3  // 写保护错误
-#define BL_FLASH_ERASE_FAILED      -4  // 擦除失败
-#define BL_FLASH_PROGRAM_FAILED    -5  // 编程失败
-#define BL_FLASH_VERIFY_FAILED     -6  // 校验失败
-#define BL_FLASH_CACHE_ERROR       -7  // 缓存错误
-#define BL_FLASH_TIMEOUT           -8  // 超时错误
+#define BL_SUCCESS              0   // 操作成功
+#define BL_ERROR                -1  // 通用错误
+#define BL_INVALID_PARAM        -2  // 无效参数
+#define BL_FLASH_ERROR          -3  // FLASH错误
+#define BL_FLASH_ERASE_FAILED   -4  // 擦除失败
+#define BL_FLASH_PROGRAM_FAILED -5  // 编程失败
+#define BL_FLASH_VERIFY_FAILED  -6  // 校验失败
+#define BL_FLASH_CACHE_ERROR    -7  // 缓存错误
 ```
 
 ## FAPI集成
@@ -249,8 +247,8 @@ typedef enum {
 
 ### 地址和长度单位
 - **所有地址**：16位字地址，不是字节地址
-- **所有长度**：以16位字为单位，不是字节数
-- **示例**：写入128个字的数据，size参数应传入128，而不是256
+- **所有size参数**：以16位字为单位
+- **示例**：写入256字节的数据，size参数应传入256
 
 ### 扇区操作约束
 - FLASH0扇区不允许操作
@@ -259,7 +257,6 @@ typedef enum {
 
 ### 缓存使用建议
 - 写入操作后调用`bl_flash_cache_flush()`确保数据持久化
-- 擦除操作前调用`bl_flash_cache_invalidate()`避免脏数据残留
 - 批量写入时注意缓存页大小限制
 
 ### 性能优化

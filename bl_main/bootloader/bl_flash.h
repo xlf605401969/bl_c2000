@@ -30,9 +30,9 @@ extern "C"
  * @brief 缓存块大小(以16位字为单位)
  *
  * 块是Flash编程的最小单位，每个块必须作为一个整体写入Flash。
- * 块大小必须是芯片允许的最小编程单位(16字)的整数倍。
+ * 块大小必须是芯片允许的最小编程单位(16字)。
  */
-#define BL_FLASH_CACHE_BLOCK_SIZE 16
+#define BL_FLASH_CACHE_BLOCK_SIZE 8
 
 /**
  * @brief 缓存块数量
@@ -44,12 +44,7 @@ extern "C"
  *
  * 用于标记哪些块被修改过，需要写回Flash
  */
-#define BL_FLASH_CACHE_DIRTY_BITMAP_SIZE ((BL_FLASH_CACHE_BLOCK_COUNT + 7) / 8)
-
-    /**
-     * @brief Flash扇区数量定义
-     */
-    extern const uint8_t BL_FLASH_SECTOR_COUNT; /**< 可操作的扇区数量(自动计算) */
+#define BL_FLASH_CACHE_DIRTY_BITMAP_SIZE ((BL_FLASH_CACHE_BLOCK_COUNT + 15) / 16)
 
     /**
      * @brief 缓存状态枚举
@@ -97,6 +92,7 @@ extern "C"
     typedef struct
     {
         bl_flash_sector_info_t *sectors; /**< 扇区信息数组 */
+        int32_t sector_count;            /**< 扇区数量 */
         bl_flash_cache_t cache;          /**< 写缓存 */
         uint32_t size;                   /**< 总大小(以16位字为单位) */
         bool initialized;                /**< 初始化标志 */
@@ -129,9 +125,11 @@ extern "C"
      * @param flash Flash设备指针
      * @param addr 起始地址(16位字地址)
      * @param size 擦除大小(以16位字为单位)
+     * @param actual_addr 实际擦除起始地址(16位字地址)
+     * @param actual_size 实际擦除大小(以16位字为单位)
      * @return 操作结果
      */
-    int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size);
+    int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size);
 
     /**
      * @brief 从Flash读取数据
@@ -144,7 +142,7 @@ extern "C"
      * @param size 读取数据大小(以16位字为单位)
      * @return 操作结果
      */
-    int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint16_t *data, uint32_t size);
+    int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint8_t *data, uint32_t size);
 
     /**
      * @brief 向Flash写入数据
@@ -182,38 +180,18 @@ extern "C"
     int bl_flash_cache_flush(bl_flash_t *flash);
 
     /**
-     * @brief 使缓存失效
-     *
-     * 刷新缓存并将状态复位到空闲。
-     *
-     * @param flash Flash设备指针
-     * @return 操作结果
-     */
-    int bl_flash_cache_invalidate(bl_flash_t *flash);
-
-    /**
-     * @brief 验证Flash数据
-     * @param flash Flash设备指针
-     * @param addr 验证起始地址(16位字地址)
-     * @param data 验证数据缓冲区指针
-     * @param size 验证数据大小(以16位字为单位)
-     * @return 操作结果
-     */
-    int bl_flash_verify(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint32_t size);
-
-    /**
      * @brief 获取扇区信息
      * @param flash Flash设备指针
-     * @param sector_idx 扇区索引(0-12，对应物理扇区1-13)
+     * @param sector_num 物理扇区号(1-13)
      * @return 扇区信息指针，失败返回NULL
      */
-    bl_flash_sector_info_t *bl_flash_get_sector_info(bl_flash_t *flash, uint8_t sector_idx);
+    bl_flash_sector_info_t *bl_flash_get_sector_info(bl_flash_t *flash, uint8_t sector_num);
 
     /**
      * @brief 根据地址查找所在扇区
      * @param flash Flash设备指针
      * @param addr 16位字地址
-     * @return 扇区索引(0-12)，未找到返回0xFF
+     * @return 物理扇区号(1-13)，未找到返回0xFF
      */
     uint8_t bl_flash_addr_to_sector(bl_flash_t *flash, uint32_t addr);
 

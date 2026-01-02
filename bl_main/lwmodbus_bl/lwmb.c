@@ -26,6 +26,8 @@ static void lwmb_start_tx_mb()
 }
 
 #if !LWMB_FRAME_MODE
+uint8_t  stream_read_buf[LWMB_RX_MAX_LENGTH];
+
 // 流模式处理
 static void process_stream(uint8_t *data, uint16_t len)
 {
@@ -85,7 +87,7 @@ static void check_complete_frame(void)
         // 调用自定义回调函数处理所有功能码
         if (ctx.func_callback != NULL)
         {
-            res = ctx.func_callback(addr, func, data, data_len, mb_send_buf, &ctx.tx_idx);
+            res = ctx.func_callback(addr, func, data, data_len, mb_send_buf+2, &ctx.tx_idx);
         }
         else
         {
@@ -94,6 +96,10 @@ static void check_complete_frame(void)
         
         if (res == LWMB_OK)
         {
+            //添加响应头
+            mb_send_buf[0] = addr;
+            mb_send_buf[1] = func;
+            ctx.tx_idx += 2;
             // 计算CRC
             uint16_t response_crc = crc16(mb_send_buf, ctx.tx_idx);
             // 添加CRC到响应
@@ -177,9 +183,8 @@ void lwmb_poll(void)
         uint16_t available = lwmb_get_stream_avaliable_data();
         if (available > 0)
         {
-            uint8_t  data[available];
-            uint16_t data_read = lwmb_read_stream(data, available); // 从流中读取数据
-            process_stream(data, data_read);
+            uint16_t data_read = lwmb_read_stream(stream_read_buf, available); // 从流中读取数据
+            process_stream(stream_read_buf, data_read);
         }
     }
 #endif

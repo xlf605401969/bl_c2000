@@ -6,7 +6,7 @@
 bl_proto_t g_bl_main_proto;
 bl_flash_t g_bl_main_proto_flash;
 
-static lwmb_err_t bl_modbus_callback(uint8_t slave_addr, uint8_t func_code, 
+static lwmb_err_t bl_modbus_callback(uint8_t slave_addr, uint8_t func_code,
                                uint8_t *req_data, uint16_t req_len,
                                uint8_t *resp_data, uint16_t *resp_len)
 {
@@ -35,14 +35,13 @@ static lwmb_err_t bl_modbus_callback(uint8_t slave_addr, uint8_t func_code,
 
 void bl_main_init()
 {
-    bl_flash_init(&g_bl_main_proto_flash);
     bl_proto_init(&g_bl_main_proto, &g_bl_main_proto_flash);
     lwmb_init(bl_modbus_callback);
 }
 
 int bl_main_deinit()
 {
-    bl_flash_deinit(&g_bl_main_proto_flash);    
+    bl_flash_deinit(&g_bl_main_proto_flash);
     return BL_SUCCESS;
 }
 

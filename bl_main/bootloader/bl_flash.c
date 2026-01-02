@@ -3,13 +3,14 @@
  * @brief Flash驱动层实现
  *
  * 注意：在C2000架构中，Flash存储器是16位宽度的，每个地址对应一个16位数据单元。
- * 本驱动中所有长度参数均以16位字(word)为单位，地址参数以字节为单位。
+ * 本驱动中所有长度参数均以字节为单位，地址参数以16位字地址为单位。
  */
 
+#include <string.h>
 #include "bl_flash.h"
 #include "FlashAPI/F021.h"
 #include "device/driverlib/flash.h"
-#include <string.h>
+#include "board.h"
 
 /**
  * @brief 默认扇区配置表
@@ -48,8 +49,6 @@ static bl_flash_sector_info_t default_sectors[] = {
     {0x0BE000, 0x1FF0, 13}, /* FLASH13 */
 };
 
-extern const uint8_t BL_FLASH_SECTOR_COUNT = sizeof(default_sectors) / sizeof(default_sectors[0]);
-
 /**
  * @brief 设置指定块为脏
  * @param cache 缓存指针
@@ -67,10 +66,10 @@ static void bl_flash_cache_set_block_dirty(bl_flash_cache_t *cache, uint32_t blo
         return;
     }
 
-    uint32_t byte_idx = block_idx / 8;
-    uint32_t bit_idx = block_idx % 8;
+    uint32_t word_idx = block_idx >> 4;
+    uint32_t bit_idx = block_idx & 0xF;
 
-    cache->dirty_bitmap[byte_idx] |= (1 << bit_idx);
+    cache->dirty_bitmap[word_idx] |= (1 << bit_idx);
 }
 
 /**
@@ -84,10 +83,10 @@ static void bl_flash_cache_clear_block_dirty(bl_flash_cache_t *cache, uint32_t b
         return;
     }
 
-    uint32_t byte_idx = block_idx / 8;
-    uint32_t bit_idx = block_idx % 8;
+    uint32_t word_idx = block_idx >> 4;
+    uint32_t bit_idx = block_idx & 0xF;
 
-    cache->dirty_bitmap[byte_idx] &= ~(1 << bit_idx);
+    cache->dirty_bitmap[word_idx] &= ~(1 << bit_idx);
 }
 
 /**
@@ -102,10 +101,10 @@ static bool bl_flash_cache_is_block_dirty(bl_flash_cache_t *cache, uint32_t bloc
         return false;
     }
 
-    uint32_t byte_idx = block_idx / 8;
-    uint32_t bit_idx = block_idx % 8;
+    uint32_t word_idx = block_idx >> 4;
+    uint32_t bit_idx = block_idx & 0xF;
 
-    return (cache->dirty_bitmap[byte_idx] & (1 << bit_idx)) != 0;
+    return (cache->dirty_bitmap[word_idx] & (1 << bit_idx)) != 0;
 }
 
 /**
@@ -138,12 +137,22 @@ int bl_flash_init(bl_flash_t *flash)
     memset(flash, 0, sizeof(bl_flash_t));
 
     flash->sectors = default_sectors;
+    flash->sector_count = sizeof(default_sectors) / sizeof(default_sectors[0]);
     flash->size = 0;
-    for (int i = 0; i < BL_FLASH_SECTOR_COUNT; i++) {
+    for (int i = 0; i < flash->sector_count; i++) {
         flash->size += default_sectors[i].size;
     }
 
     Fapi_StatusType status;
+
+    Flash_initModule(FLASH0CTRL_BASE, FLASH0ECC_BASE, 3);
+
+    status = Fapi_initializeAPI(F021_CPU0_BASE_ADDRESS,
+                                      DEVICE_SYSCLK_FREQ/1000000U);
+    if (status != Fapi_Status_Success) {
+        return BL_FLASH_ERROR;
+    }
+
     Fapi_FlashBankType bank = Fapi_FlashBank0;
 
     status = Fapi_setActiveFlashBank(bank);
@@ -188,20 +197,14 @@ int bl_flash_erase_sector(bl_flash_t *flash, uint16_t sector_num)
         return BL_INVALID_PARAM;
     }
 
-    // 查找对应的扇区信息
-    bl_flash_sector_info_t *info = NULL;
-    for (int i = 0; i < BL_FLASH_SECTOR_COUNT; i++) {
-        if (flash->sectors[i].sector_num == sector_num) {
-            info = &flash->sectors[i];
-            break;
-        }
-    }
-
+    bl_flash_sector_info_t *info = bl_flash_get_sector_info(flash, (uint8_t)sector_num);
     if (info == NULL) {
         return BL_INVALID_PARAM;
     }
 
-    return bl_flash_erase_range(flash, info->start_address, info->size);
+    uint32_t actual_addr = 0;
+    uint32_t actual_size = 0;
+    return bl_flash_erase_range(flash, info->start_address, info->size, &actual_addr, &actual_size);
 }
 
 /**
@@ -209,38 +212,57 @@ int bl_flash_erase_sector(bl_flash_t *flash, uint16_t sector_num)
  * @param flash Flash设备指针
  * @param addr 起始地址(16位字地址)
  * @param size 擦除大小(以16位字为单位)
+ * @param actual_addr 实际擦除起始地址(16位字地址)
+ * @param actual_size 实际擦除大小(以16位字为单位)
  * @return 成功返回BL_SUCCESS，失败返回错误码
+ *
+ * 注意：此函数的size参数以16位字为单位，与其他读写函数不同。
  */
-int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size)
+int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size)
 {
     if (flash == NULL || !flash->initialized) {
         return BL_INVALID_PARAM;
+    }
+
+    if (actual_addr != NULL) {
+        *actual_addr = 0xFFFFFFFF;
+    }
+
+    if (actual_size != NULL) {
+        *actual_size = 0;
     }
 
     // 计算结束地址(16位字地址)
     uint32_t end_addr = addr + size;
     
     // 遍历所有扇区，擦除覆盖的扇区
-    for (int i = 0; i < BL_FLASH_SECTOR_COUNT; i++) {
+    for (int i = 0; i < flash->sector_count; i++) {
         bl_flash_sector_info_t *sector_info = &flash->sectors[i];
         uint32_t sector_start = sector_info->start_address;
         uint32_t sector_end = sector_start + sector_info->size; // size是16位字数量
         
         // 检查当前扇区是否与擦除范围有交集
-        if (sector_start < end_addr && sector_end > addr) {
+        if (!((sector_start < addr && sector_end <= addr) || (sector_start >= end_addr && sector_end > end_addr))) {
+            // 更新实际擦除范围
+            if (actual_addr != NULL) {
+                if (*actual_addr == 0xFFFFFFFF) {
+                    *actual_addr = sector_start;
+                }
+            }
+            if (actual_size != NULL) {
+                *actual_size += sector_info->size;
+            }
+            
             // 使用底层API擦除扇区
             Fapi_StatusType status = Fapi_issueAsyncCommandWithAddress(Fapi_EraseSector,
                                                                        (uint32_t *)sector_start);
-            if (status != Fapi_Status_Success) {
-                return BL_FLASH_ERASE_FAILED;
-            }
-
             // 等待擦除完成
             do {
                 status = Fapi_checkFsmForReady();
             } while (status == Fapi_Status_FsmBusy);
             
-            if (status != Fapi_Status_FsmReady) {
+            status = Fapi_getFsmStatus();
+            if (status != Fapi_Status_Success) {
                 return BL_FLASH_ERASE_FAILED;
             }
         }
@@ -253,8 +275,8 @@ int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size)
  * @brief 从Flash读取数据
  * @param flash Flash设备指针
  * @param addr 读取起始地址(16位字地址)
- * @param data 读取数据缓冲区指针
- * @param size 读取数据大小(以16位字为单位)
+ * @param data 读取数据缓冲区指针(16位字数组)
+ * @param size 读取数据大小(以字节为单位)
  * @return 成功返回BL_SUCCESS，失败返回错误码
  *
  * 读取操作直接访问Flash，不经过缓存。
@@ -266,7 +288,8 @@ int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint16_t *data, uint32_t siz
         return BL_INVALID_PARAM;
     }
 
-    memcpy(data, (uint16_t *)addr, size * sizeof(uint16_t));
+    uint32_t word_count = (size + 1) / 2;
+    memcpy(data, (uint16_t *)addr, word_count * sizeof(uint16_t));
 
     return BL_SUCCESS;
 }
@@ -367,10 +390,9 @@ int bl_flash_cache_init(bl_flash_t *flash)
  * 写回流程：
  * 1. 遍历所有块，检查脏位图
  * 2. 对于每个脏块：
- *    a. 计算块在缓存中的偏移：block_offset = block_idx * BL_FLASH_CACHE_BLOCK_SIZE
- *    b. 计算块的Flash地址：write_addr = base_addr + block_offset
- *       注意：base_addr是字节地址，block_offset是字偏移
- *    c. 调用Fapi_issueProgrammingCommand写入块数据
+ *    a. 计算块在缓存中的字节偏移：block_offset = block_idx * BL_FLASH_CACHE_BLOCK_SIZE
+ *    b. 计算块的Flash字地址：write_addr = base_addr + block_offset
+ *    c. 调用Fapi_issueProgrammingCommand写入块数据（使用字节缓冲区）
  *    d. 等待Flash FSM就绪
  *    e. 清除该块的脏标记
  * 3. 完成后清除所有脏标记并重置缓存状态
@@ -405,18 +427,15 @@ int bl_flash_cache_flush(bl_flash_t *flash)
                                                NULL, 
                                                0, 
                                                Fapi_AutoEccGeneration);
-        if (status != Fapi_Status_Success) {
-            flash->cache.state = BL_FLASH_CACHE_STATE_DIRTY;
-            return BL_FLASH_CACHE_ERROR;
-        }
-
+                                               
+        // 等待擦除完成
         do {
             status = Fapi_checkFsmForReady();
         } while (status == Fapi_Status_FsmBusy);
-
-        if (status != Fapi_Status_FsmReady) {
-            flash->cache.state = BL_FLASH_CACHE_STATE_DIRTY;
-            return BL_FLASH_CACHE_ERROR;
+        
+        status = Fapi_getFsmStatus();
+        if (status != Fapi_Status_Success) {
+            return BL_FLASH_PROGRAM_FAILED;
         }
 
         bl_flash_cache_clear_block_dirty(&flash->cache, block_idx);
@@ -429,72 +448,31 @@ int bl_flash_cache_flush(bl_flash_t *flash)
 }
 
 /**
- * @brief 使缓存失效
- * @param flash Flash设备指针
- * @return 成功返回BL_SUCCESS，失败返回错误码
- *
- * 在擦除操作前调用，确保不会有脏数据残留。
- */
-int bl_flash_cache_invalidate(bl_flash_t *flash)
-{
-    if (flash == NULL || !flash->initialized) {
-        return BL_INVALID_PARAM;
-    }
-
-    bl_flash_cache_flush(flash);
-
-    flash->cache.state = BL_FLASH_CACHE_STATE_IDLE;
-    flash->cache.base_addr = 0;
-    bl_flash_cache_clear_all_dirty(&flash->cache);
-
-    return BL_SUCCESS;
-}
-
-/**
- * @brief 验证Flash数据
- * @param flash Flash设备指针
- * @param addr 验证起始地址(16位字地址)
- * @param data 验证数据缓冲区指针
- * @param size 验证数据大小(以16位字为单位)
- * @return 成功返回BL_SUCCESS，失败返回错误码
- */
-int bl_flash_verify(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint32_t size)
-{
-    if (flash == NULL || !flash->initialized || data == NULL) {
-        return BL_INVALID_PARAM;
-    }
-
-    // 从Flash中读取数据进行比较
-    const uint16_t *flash_data = (const uint16_t *)addr;
-    for (uint32_t i = 0; i < size; i++) {
-        if (flash_data[i] != data[i]) {
-            return BL_FLASH_VERIFY_FAILED;
-        }
-    }
-
-    return BL_SUCCESS;
-}
-
-/**
  * @brief 获取扇区信息
  * @param flash Flash设备指针
- * @param sector_idx 扇区索引(0-12，对应物理扇区1-13)
+ * @param sector_num 物理扇区号(1-13)
  * @return 扇区信息指针，失败返回NULL
  */
-bl_flash_sector_info_t *bl_flash_get_sector_info(bl_flash_t *flash, uint8_t sector_idx)
+bl_flash_sector_info_t *bl_flash_get_sector_info(bl_flash_t *flash, uint8_t sector_num)
 {
-    if (flash == NULL || sector_idx >= BL_FLASH_SECTOR_COUNT) {
+    if (flash == NULL) {
         return NULL;
     }
 
-    return &flash->sectors[sector_idx];
+    for (int i = 0; i < flash->sector_count; i++) {
+        if (flash->sectors[i].sector_num == sector_num) {
+            return &flash->sectors[i];
+        }
+    }
+
+    return NULL;
 }
 
 /**
  * @brief 根据地址查找所在扇区
  * @param flash Flash设备指针
  * @param addr 16位字地址
- * @return 扇区索引(0-12)，未找到返回0xFF
+ * @return 物理扇区号(1-13)，未找到返回0xFF
  */
 uint8_t bl_flash_addr_to_sector(bl_flash_t *flash, uint32_t addr)
 {
@@ -502,11 +480,11 @@ uint8_t bl_flash_addr_to_sector(bl_flash_t *flash, uint32_t addr)
         return 0xFF;
     }
 
-    for (int i = 0; i < BL_FLASH_SECTOR_COUNT; i++) {
+    for (int i = 0; i < flash->sector_count; i++) {
         uint32_t sector_end = flash->sectors[i].start_address + flash->sectors[i].size;
         if (addr >= flash->sectors[i].start_address && 
             addr < sector_end) {
-            return (uint8_t)i;
+            return flash->sectors[i].sector_num;
         }
     }
 

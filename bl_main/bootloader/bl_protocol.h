@@ -81,14 +81,15 @@ typedef enum
 typedef struct
 {
     uint32_t magic;         /**< 魔数标识 (0xDEADBEEF) */
+    uint8_t valid_flag;     /**< 有效标志位 (0xAA = 有效) */
+    uint32_t entry_addr;    /**< 应用程序入口地址 */
     uint16_t major_version; /**< 主版本号 */
     uint16_t minor_version; /**< 次版本号 */
     uint32_t build_version; /**< 构建版本号 */
     uint32_t app_length;    /**< 应用程序长度 (末地址-首地址) */
     uint32_t crc32;         /**< CRC32校验码 */
     uint32_t timestamp;     /**< 时间戳 */
-    uint8_t valid_flag;     /**< 有效标志位 (0xAA = 有效) */
-    uint8_t reserved[15];   /**< 保留字段，用于未来扩展 */
+    uint8_t reserved[3];   /**< 保留字段，用于未来扩展 */
 } bl_app_info_t;
 
 typedef struct
@@ -114,6 +115,7 @@ typedef struct
     uint32_t app_start_addr;
     uint32_t app_max_size;
     bool in_bootloader;
+    int32_t last_error;
     bl_flash_t *flash;
     bl_app_info_t app_info;
 } bl_proto_t;

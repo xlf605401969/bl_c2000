@@ -1,3 +1,8 @@
+/**
+ * @file bl_main.h
+ * @brief Bootloader主模块头文件
+ */
+
 #ifndef BL_MAIN_H
 #define BL_MAIN_H
 
