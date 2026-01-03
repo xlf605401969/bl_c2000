@@ -34,6 +34,7 @@
  * 注意：size字段以16位字为单位
  */
 static bl_flash_sector_info_t default_sectors[] = {
+    {0x080000, 0x2000, 0},  /* FLASH1 */
     {0x082000, 0x2000, 1},  /* FLASH1 */
     {0x084000, 0x2000, 2},  /* FLASH2 */
     {0x086000, 0x2000, 3},  /* FLASH3 */
