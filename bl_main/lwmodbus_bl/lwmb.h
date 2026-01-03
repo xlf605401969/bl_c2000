@@ -22,7 +22,7 @@
 #define LWMB_COMM_BAUDRATE 2000000L // 通信波特率
 
 #define LWMB_TX_MAX_LENGTH 64 // 最大发送长度
-#define LWMB_RX_MAX_LENGTH 128 // 最大接收长度
+#define LWMB_RX_MAX_LENGTH 256 // 最大接收长度
 // 内部状态定义
 typedef enum
 {

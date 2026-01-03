@@ -34,6 +34,7 @@ gpio1.$name             = "SPI_STEn";
 gpio1.gpioPin.$assign   = "GPIO125";
 
 sci1.$name                 = "BL_SCI";
+sci1.baudRates             = 250000;
 sci1.sci.$assign           = "SCIA";
 sci1.sci.sci_rxPin.$assign = "GPIO43";
 sci1.sci.sci_txPin.$assign = "GPIO42";
