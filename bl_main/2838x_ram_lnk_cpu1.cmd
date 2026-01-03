@@ -1,13 +1,13 @@
 MEMORY
 {
    /* BEGIN is used for the "boot to SARAM" bootloader mode   */
-   BEGIN            : origin = 0x000000, length = 0x000002
-   BOOT_RSVD        : origin = 0x000002, length = 0x0001AE     /* Part of M0, BOOT rom will use this for stack */
+   BOOT_RSVD        : origin = 0x000000, length = 0x0001B0     /* Part of M0, BOOT rom will use this for stack */
    RAMM0            : origin = 0x0001B0, length = 0x000250
    RAMM1            : origin = 0x000400, length = 0x000400     /* on-chip RAM block M1 */
    RAMD0            : origin = 0x00C000, length = 0x000800
    RAMD1            : origin = 0x00C800, length = 0x000800
-   RAMLS0           : origin = 0x008000, length = 0x000800
+   BEGIN            : origin = 0x008000, length = 0x000002
+   RAMLS0           : origin = 0x008002, length = 0x0007FE
    RAMLS1           : origin = 0x008800, length = 0x000800
    RAMLS2           : origin = 0x009000, length = 0x000800
    RAMLS3           : origin = 0x009800, length = 0x000800
@@ -62,19 +62,19 @@ MEMORY
 SECTIONS
 {
    codestart        : > BEGIN
-   .text            : >> RAMD0 | RAMD1 | RAMLS0 | RAMLS1 | RAMLS2 | RAMLS3
-   .cinit           : > RAMM0
-   .switch          : > RAMM0
+   .text            : >> RAMLS0 | RAMLS1 | RAMLS2 | RAMLS3 | RAMLS4 | RAMLS5
+   .cinit           : > RAMLS4
+   .switch          : > RAMLS4
    .reset           : > RESET, TYPE = DSECT /* not used, */
 
-   .stack           : > RAMM1
+   .stack           : > RAMM0
 #if defined(__TI_EABI__)
-   .bss             : > RAMLS5
-   .bss:output      : > RAMLS3
-   .init_array      : > RAMM0
-   .const           : > RAMLS5
-   .data            : > RAMLS5
-   .sysmem          : > RAMLS4
+   .bss             : > RAMM1
+   .bss:output      : > RAMM1
+   .init_array      : > RAMLS0
+   .const           : > RAMLS0
+   .data            : > RAMLS0
+   .sysmem          : > RAMM1
 #else
    .pinit           : > RAMM0
    .ebss            : >> RAMLS5 | RAMLS6
@@ -98,7 +98,7 @@ SECTIONS
    Filter4_RegsFile : > RAMGS4, fill=0x4444
    Difference_RegsFile : >RAMGS5, fill=0x3333
 
-    .TI.ramfunc : {} > RAMM0
+    .TI.ramfunc : {} > RAMLS0
 
 }
 

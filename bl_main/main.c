@@ -22,7 +22,7 @@ void check_timer(void)
     }
 }
 
-int main()
+int main_in_ram()
 {
     Device_init();
 
@@ -36,4 +36,21 @@ int main()
         check_timer();
         bl_main_process();
     }
+}
+
+extern uint32_t _Ram_ramfunc_Start, _Flash_ramfunc_Start, _Flash_ramfunc_Size;
+
+__attribute__((section(".flash_res_funcs")))
+int main()
+{
+    SysCtl_disableWatchdog();
+    uint16_t* sourceAddr = (uint16_t*)&_Flash_ramfunc_Start;
+    uint16_t* targetAddr = (uint16_t*)&_Ram_ramfunc_Start;
+
+    for (uint32_t i = 0; i < (uint32_t)&_Flash_ramfunc_Size; i++)
+    {
+        *(targetAddr++) = *(sourceAddr++);
+    }
+
+    main_in_ram();
 }
