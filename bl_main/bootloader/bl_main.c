@@ -16,19 +16,19 @@ static lwmb_err_t bl_modbus_callback(uint8_t slave_addr, uint8_t func_code,
 
     req.slave_addr = slave_addr;
     req.func_code = func_code;
-    memcpy(req.data, req_data, req_len);
+    // 单线程下可直接使用req_data作为请求数据，避免拷贝
+    req.data = req_data;
     req.data_len = req_len;
+
+    // 单线程下可直接使用resp_data作为响应数据，避免拷贝
+    resp.data = resp_data;
 
     result = bl_proto_process_request(&g_bl_main_proto, &req, &resp);
     if (result != LWMB_OK && result != LWMB_OK_NO_REPLY) {
         return result;
     }
 
-    resp_data[0] = resp.status;
-    if (resp.data_len > 0) {
-        memcpy(&resp_data[1], resp.data, resp.data_len);
-    }
-    *resp_len = resp.data_len + 1;
+    *resp_len = resp.data_len ;
 
     return result;
 }

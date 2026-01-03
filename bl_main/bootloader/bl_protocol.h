@@ -56,7 +56,8 @@ extern "C"
 #define BL_PROTO_TARGET_LOCAL 0x00
 #define BL_PROTO_TARGET_SLAVE 0x01
 
-#define BL_PROTO_MAX_DATA_LEN 128
+#define BL_PROTO_MAX_RX_DATA_LEN (LWMB_RX_MAX_LENGTH - 10)
+#define BL_PROTO_MAX_TX_DATA_LEN (LWMB_TX_MAX_LENGTH - 10)
 
 typedef enum
 {
@@ -96,7 +97,7 @@ typedef struct
 {
     uint8_t slave_addr;
     uint8_t func_code;
-    uint8_t data[BL_PROTO_MAX_DATA_LEN];
+    uint8_t *data;
     uint16_t data_len;
 } bl_proto_request_t;
 
@@ -104,8 +105,7 @@ typedef struct
 {
     uint8_t slave_addr;
     uint8_t func_code;
-    uint8_t status;
-    uint8_t data[BL_PROTO_MAX_DATA_LEN];
+    uint8_t *data;
     uint16_t data_len;
 } bl_proto_response_t;
 

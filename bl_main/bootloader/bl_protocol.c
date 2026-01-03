@@ -1,7 +1,10 @@
 #include "bl_protocol.h"
 #include <string.h>
 
+uint16_t word_data[(BL_PROTO_MAX_RX_DATA_LEN + 1) / 2];
+
 static int bl_proto_read_app_info(bl_proto_t *proto, bl_app_info_t *app_info);
+
 
 /**
  * @brief 初始化bootloader协议处理器
@@ -149,14 +152,12 @@ static lwmb_err_t bl_proto_handle_read_registers(bl_proto_t *proto, const bl_pro
             break;
         }
 
-        resp->data[i * 2] = (reg_value >> 8) & 0xFF;
-        resp->data[i * 2 + 1] = reg_value & 0xFF;
+        resp->data[i * 2 + 1] = (reg_value >> 8) & 0xFF;
+        resp->data[i * 2 + 2] = reg_value & 0xFF;
     }
 
-    resp->data_len = reg_count * 2; // 字节计数 + 寄存器数据
-    
-    //标准功能码04状态位是字节计数
-    resp->status = reg_count * 2;
+    resp->data[0] = reg_count * 2;
+    resp->data_len = reg_count * 2 + 1; // 字节计数 + 寄存器数据
 
     return LWMB_OK;
 }
@@ -175,8 +176,8 @@ static lwmb_err_t bl_proto_handle_enter_bl(bl_proto_t *proto, bl_proto_response_
     proto->state = BL_PROTO_STATE_BOOTLOADER;
     proto->in_bootloader = true;
 
-    resp->status = BL_PROTO_STATUS_SUCCESS;
-    resp->data_len = 0;
+    resp->data[0] = BL_PROTO_STATUS_SUCCESS;
+    resp->data_len = 1;
 
     return LWMB_OK;
 }
@@ -201,22 +202,29 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
         return LWMB_ERR_FRAME;
     }
 
-    uint32_t start_addr = ((uint32_t)req->data[0] << 24) | ((uint32_t)req->data[1] << 16) |
+    uint32_t proto_start_addr = ((uint32_t)req->data[0] << 24) | ((uint32_t)req->data[1] << 16) |
                           ((uint32_t)req->data[2] << 8) | req->data[3];
-    uint32_t length = ((uint32_t)req->data[4] << 24) | ((uint32_t)req->data[5] << 16) |
+    uint32_t proto_length = ((uint32_t)req->data[4] << 24) | ((uint32_t)req->data[5] << 16) |
                       ((uint32_t)req->data[6] << 8) | req->data[7];
 
-    if (start_addr == 0xFFFFFFFF && length == 0xFFFFFFFF)
+    uint32_t start_addr, length;
+
+    if (proto_start_addr == 0xFFFFFFFF && proto_length == 0xFFFFFFFF)
     {
         start_addr = proto->app_start_addr;
         length = proto->app_max_size;
+    }
+    else
+    {
+        start_addr = proto_start_addr;
+        length = proto_length;
     }
 
     uint8_t sector = bl_flash_addr_to_sector(proto->flash, start_addr);
     if (sector == 0xFF)
     {
-        resp->status = BL_PROTO_STATUS_INVALID_RANGE;
-        resp->data_len = 8;
+        resp->data[0] = BL_PROTO_STATUS_INVALID_RANGE;
+        resp->data_len = 9;
         return LWMB_OK;
     }
 
@@ -226,22 +234,22 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
     int result = bl_flash_erase_range(proto->flash, start_addr, length, &actual_start_addr, &actual_length);
     if (result != BL_SUCCESS)
     {
-        resp->status = BL_PROTO_STATUS_ERASE_FAIL;
-        resp->data_len = 8;
+        resp->data[0] = BL_PROTO_STATUS_ERASE_FAIL;
+        resp->data_len = 9; 
         return LWMB_OK;
     }
 
 
-    resp->data[0] = (actual_start_addr >> 24) & 0xFF;
-    resp->data[1] = (actual_start_addr >> 16) & 0xFF;
-    resp->data[2] = (actual_start_addr >> 8) & 0xFF;
-    resp->data[3] = actual_start_addr & 0xFF;
-    resp->data[4] = (actual_length >> 24) & 0xFF;
-    resp->data[5] = (actual_length >> 16) & 0xFF;
-    resp->data[6] = (actual_length >> 8) & 0xFF;
-    resp->data[7] = actual_length & 0xFF;
-    resp->data_len = 8;
-    resp->status = BL_PROTO_STATUS_SUCCESS;
+    resp->data[1] = (actual_start_addr >> 24) & 0xFF;
+    resp->data[2] = (actual_start_addr >> 16) & 0xFF;
+    resp->data[3] = (actual_start_addr >> 8) & 0xFF;
+    resp->data[4] = actual_start_addr & 0xFF;
+    resp->data[5] = (actual_length >> 24) & 0xFF;
+    resp->data[6] = (actual_length >> 16) & 0xFF;
+    resp->data[7] = (actual_length >> 8) & 0xFF;
+    resp->data[8] = actual_length & 0xFF;
+    resp->data[9] = BL_PROTO_STATUS_SUCCESS;
+    resp->data_len = 9;
 
     return LWMB_OK;
 }
@@ -278,14 +286,24 @@ static lwmb_err_t bl_proto_handle_write(bl_proto_t *proto, const bl_proto_reques
     uint8_t sector = bl_flash_addr_to_sector(proto->flash, addr);
     if (sector == 0xFF)
     {
-        resp->status = BL_PROTO_STATUS_INVALID_RANGE;
-        resp->data_len = 2;
+        resp->data[0] = BL_PROTO_STATUS_INVALID_RANGE;
+        resp->data[1] = 0;
+        resp->data[2] = 0;
+        resp->data_len = 3;
+        return LWMB_OK;
+    }
+
+    if (byte_length > BL_PROTO_MAX_RX_DATA_LEN)
+    {
+        resp->data[0] = BL_PROTO_STATUS_INVALID_RANGE;
+        resp->data[1] = 0;
+        resp->data[2] = 0;
+        resp->data_len = 3;
         return LWMB_OK;
     }
 
     // 将字节数据转换为16位字数据
     uint16_t word_length = (byte_length + 1) / 2; // 字节数转换为字数（向上取整）
-    uint16_t word_data[BL_PROTO_MAX_DATA_LEN / 2];
 
     // 复制数据并处理字节序
     for (uint16_t i = 0; i < word_length; i++)
@@ -302,16 +320,18 @@ static lwmb_err_t bl_proto_handle_write(bl_proto_t *proto, const bl_proto_reques
     int result = bl_flash_write(proto->flash, addr, word_data, word_length);
     if (result != BL_SUCCESS)
     {
-        resp->status = BL_PROTO_STATUS_WRITE_FAIL;
-        resp->data_len = 2;
+        resp->data[0] = BL_PROTO_STATUS_WRITE_FAIL;
+        resp->data[1] = 0;
+        resp->data[2] = 0;
+        resp->data_len = 3;
         return LWMB_OK;
     }
 
     // 返回实际写入的字节数
-    resp->data[0] = (byte_length >> 8) & 0xFF;
-    resp->data[1] = byte_length & 0xFF;
-    resp->data_len = 2;
-    resp->status = BL_PROTO_STATUS_SUCCESS;
+    resp->data[0] = BL_PROTO_STATUS_SUCCESS;
+    resp->data[1] = (byte_length >> 8) & 0xFF;
+    resp->data[2] = byte_length & 0xFF;
+    resp->data_len = 3;
 
     return LWMB_OK;
 }
@@ -349,8 +369,8 @@ static lwmb_err_t bl_proto_handle_jump(bl_proto_t *proto, const bl_proto_request
         }
         else
         {
-            resp->status = BL_PROTO_STATUS_INVALID_APP;
-            resp->data_len = 0;
+            resp->data[0] = BL_PROTO_STATUS_INVALID_APP;
+            resp->data_len = 1;
             return LWMB_OK;
         }
     }
@@ -360,8 +380,8 @@ static lwmb_err_t bl_proto_handle_jump(bl_proto_t *proto, const bl_proto_request
         //TODO: 跳转至应用程序
     }
 
-    resp->status = BL_PROTO_STATUS_SUCCESS;
-    resp->data_len = 0;
+    resp->data[0] = BL_PROTO_STATUS_SUCCESS;
+    resp->data_len = 1;
 
     return LWMB_OK;
 }
@@ -432,13 +452,13 @@ static lwmb_err_t bl_proto_handle_flush_cache(bl_proto_t *proto, const bl_proto_
     int result = bl_flash_cache_flush(proto->flash);
     if (result != BL_SUCCESS)
     {
-        resp->status = BL_PROTO_STATUS_ERROR;
-        resp->data_len = 0;
+        resp->data[0] = BL_PROTO_STATUS_ERROR;
+        resp->data_len = 1;
         return LWMB_OK;
     }
 
-    resp->status = BL_PROTO_STATUS_SUCCESS;
-    resp->data_len = 0;
+    resp->data[0] = BL_PROTO_STATUS_SUCCESS;
+    resp->data_len = 1; 
 
     return LWMB_OK;
 }
@@ -488,14 +508,14 @@ static lwmb_err_t bl_proto_handle_finish_app_write(bl_proto_t *proto, const bl_p
     int result = bl_proto_write_app_info(proto, &app_info);
     if (result != BL_SUCCESS)
     {
-        resp->status = BL_PROTO_STATUS_WRITE_FAIL;
-        resp->data_len = 0;
+        resp->data[0] = BL_PROTO_STATUS_WRITE_FAIL;
+        resp->data_len = 1;
         return LWMB_OK;
     }
     proto->app_info = app_info;
 
-    resp->status = BL_PROTO_STATUS_SUCCESS;
-    resp->data_len = 0;
+    resp->data[0] = BL_PROTO_STATUS_SUCCESS;
+    resp->data_len = 1; 
 
     return LWMB_OK;
 }
@@ -503,8 +523,8 @@ static lwmb_err_t bl_proto_handle_finish_app_write(bl_proto_t *proto, const bl_p
 static lwmb_err_t bl_proto_handle_reset(bl_proto_t *proto, bl_proto_response_t *resp)
 {
     //:TODO 复位芯片
-    resp->status = BL_PROTO_STATUS_SUCCESS;
-    resp->data_len = 0;
+    resp->data[0] = BL_PROTO_STATUS_SUCCESS;
+    resp->data_len = 1; 
 
     return LWMB_OK;
 }
@@ -522,10 +542,8 @@ static lwmb_err_t bl_proto_handle_reset(bl_proto_t *proto, bl_proto_response_t *
  */
 lwmb_err_t bl_proto_process_request(bl_proto_t *proto, const bl_proto_request_t *req, bl_proto_response_t *resp)
 {
-    memset(resp, 0, sizeof(bl_proto_response_t));
     resp->slave_addr = req->slave_addr;
     resp->func_code = req->func_code;
-    resp->status = BL_PROTO_STATUS_SUCCESS;
 
     switch (req->func_code)
     {
@@ -554,8 +572,6 @@ lwmb_err_t bl_proto_process_request(bl_proto_t *proto, const bl_proto_request_t 
         return bl_proto_handle_finish_app_write(proto, req, resp);
 
     default:
-        resp->status = BL_PROTO_STATUS_ERROR;
-        resp->data_len = 0;
         return LWMB_ERR_FUNC; // 协议层正确，但功能码不支持
     }
 }

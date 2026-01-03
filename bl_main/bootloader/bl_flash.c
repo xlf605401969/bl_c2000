@@ -339,7 +339,10 @@ int bl_flash_write(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint3
         if (flash->cache.state == BL_FLASH_CACHE_STATE_IDLE ||
             flash->cache.base_addr != page_addr) {
             
-            bl_flash_cache_flush(flash);
+            int result = bl_flash_cache_flush(flash);
+            if (result != BL_SUCCESS) {
+                return result;
+            }
             
             flash->cache.base_addr = page_addr;
             flash->cache.state = BL_FLASH_CACHE_STATE_ACTIVE;
