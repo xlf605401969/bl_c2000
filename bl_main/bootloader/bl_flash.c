@@ -337,7 +337,7 @@ int bl_flash_write(uint32_t addr, const uint16_t *data, uint32_t size)
         if (g_bl_flash.cache.state == BL_FLASH_CACHE_STATE_IDLE ||
             g_bl_flash.cache.base_addr != page_addr) {
             
-            int result = bl_flash_cache_flush(&g_bl_flash);
+            int result = bl_flash_cache_flush();
             if (result != BL_SUCCESS) {
                 return result;
             }

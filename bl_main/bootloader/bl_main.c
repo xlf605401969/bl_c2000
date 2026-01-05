@@ -1,6 +1,7 @@
 #include "bl_main.h"
 #include "lwmodbus_bl/lwmb.h"
 #include "lwmodbus_bl/lwmb_port.h"
+#include "bl_flash_mgr.h"
 #include <string.h>
 
 bl_proto_t g_bl_main_proto;
@@ -35,7 +36,6 @@ static lwmb_err_t bl_modbus_callback(uint8_t slave_addr, uint8_t func_code,
 
 void bl_main_init()
 {
-    bl_flash_init();
     bl_flash_mgr_init_local(BL_MAIN_FLASH_MGR_IDX);
     bl_flash_mgr_activate(BL_MAIN_FLASH_MGR_IDX);
     bl_proto_init(&g_bl_main_proto);
@@ -45,7 +45,6 @@ void bl_main_init()
 int bl_main_deinit()
 {
     bl_flash_mgr_deinit(BL_MAIN_FLASH_MGR_IDX);
-    bl_flash_deinit();
     return BL_SUCCESS;
 }
 
