@@ -4,7 +4,7 @@
 #include <string.h>
 
 bl_proto_t g_bl_main_proto;
-bl_flash_t g_bl_main_proto_flash;
+#define BL_MAIN_FLASH_MGR_IDX 0
 
 static lwmb_err_t bl_modbus_callback(uint8_t slave_addr, uint8_t func_code,
                                uint8_t *req_data, uint16_t req_len,
@@ -35,13 +35,17 @@ static lwmb_err_t bl_modbus_callback(uint8_t slave_addr, uint8_t func_code,
 
 void bl_main_init()
 {
-    bl_proto_init(&g_bl_main_proto, &g_bl_main_proto_flash);
+    bl_flash_init();
+    bl_flash_mgr_init_local(BL_MAIN_FLASH_MGR_IDX);
+    bl_flash_mgr_activate(BL_MAIN_FLASH_MGR_IDX);
+    bl_proto_init(&g_bl_main_proto);
     lwmb_init(bl_modbus_callback);
 }
 
 int bl_main_deinit()
 {
-    bl_flash_deinit(&g_bl_main_proto_flash);
+    bl_flash_mgr_deinit(BL_MAIN_FLASH_MGR_IDX);
+    bl_flash_deinit();
     return BL_SUCCESS;
 }
 

@@ -3,29 +3,213 @@
 
 uint16_t word_data[(BL_PROTO_MAX_RX_DATA_LEN + 1) / 2];
 
+static bl_flash_mgr_t g_flash_mgrs[BL_FLASH_MGR_COUNT];
+static uint8_t g_active_flash_mgr_idx = 0xFF;
+
 static int bl_proto_read_app_info(bl_proto_t *proto, bl_app_info_t *app_info);
 
+static int bl_flash_mgr_erase_local(void *flash_ptr, uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size)
+{
+    (void)flash_ptr;
+    return bl_flash_erase_range(addr, size, actual_addr, actual_size);
+}
+
+static int bl_flash_mgr_write_local(void *flash_ptr, uint32_t addr, const uint16_t* data, uint32_t size)
+{
+    (void)flash_ptr;
+    return bl_flash_write(addr, data, size);
+}
+
+static int bl_flash_mgr_read_local(void *flash_ptr, uint32_t addr, uint8_t *data, uint32_t size)
+{
+    (void)flash_ptr;
+    return bl_flash_read(addr, (uint16_t*)data, size);
+}
+
+static int bl_flash_mgr_flush_local(void *flash_ptr)
+{
+    (void)flash_ptr;
+    return bl_flash_cache_flush();
+}
+
+static uint32_t bl_flash_mgr_get_size_local(void *flash_ptr)
+{
+    (void)flash_ptr;
+    return bl_flash_get_size();
+}
+
+static uint8_t bl_flash_mgr_addr_to_sector_local(void *flash_ptr, uint32_t addr)
+{
+    (void)flash_ptr;
+    return bl_flash_addr_to_sector(addr);
+}
+
+static uint32_t bl_flash_mgr_get_sector_start_addr_local(void *flash_ptr, uint8_t sector_num)
+{
+    (void)flash_ptr;
+    return bl_flash_get_sector_start_addr(sector_num);
+}
+
+static int bl_flash_mgr_erase_cm(void *flash_ptr, uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size)
+{
+    (void)flash_ptr;
+    return bl_flash_cm_erase(addr, size, actual_addr, actual_size);
+}
+
+static int bl_flash_mgr_write_cm(void *flash_ptr, uint32_t addr, const uint16_t* data, uint32_t size)
+{
+    (void)flash_ptr;
+    return bl_flash_cm_write(addr, data, size);
+}
+
+static int bl_flash_mgr_read_cm(void *flash_ptr, uint32_t addr, uint8_t *data, uint32_t size)
+{
+    (void)flash_ptr;
+    (void)addr;
+    (void)data;
+    (void)size;
+    return BL_NOT_SUPPORTED;
+}
+
+static int bl_flash_mgr_flush_cm(void *flash_ptr)
+{
+    (void)flash_ptr;
+    return bl_flash_cm_flush();
+}
+
+static uint32_t bl_flash_mgr_get_size_cm(void *flash_ptr)
+{
+    (void)flash_ptr;
+    return 0;
+}
+
+static uint8_t bl_flash_mgr_addr_to_sector_cm(void *flash_ptr, uint32_t addr)
+{
+    (void)flash_ptr;
+    (void)addr;
+    return 0xFF;
+}
+
+static uint32_t bl_flash_mgr_get_sector_start_addr_cm(void *flash_ptr, uint8_t sector_num)
+{
+    (void)flash_ptr;
+    (void)sector_num;
+    return 0xFFFFFFFF;
+}
+
+int bl_flash_mgr_init_local(uint8_t mgr_idx)
+{
+    if (mgr_idx >= BL_FLASH_MGR_COUNT) {
+        return BL_INVALID_PARAM;
+    }
+
+    g_flash_mgrs[mgr_idx].type = BL_FLASH_TYPE_LOCAL;
+    g_flash_mgrs[mgr_idx].flash_ptr = NULL;
+    g_flash_mgrs[mgr_idx].ops.erase = bl_flash_mgr_erase_local;
+    g_flash_mgrs[mgr_idx].ops.write = bl_flash_mgr_write_local;
+    g_flash_mgrs[mgr_idx].ops.read = bl_flash_mgr_read_local;
+    g_flash_mgrs[mgr_idx].ops.flush = bl_flash_mgr_flush_local;
+    g_flash_mgrs[mgr_idx].ops.get_size = bl_flash_mgr_get_size_local;
+    g_flash_mgrs[mgr_idx].ops.addr_to_sector = bl_flash_mgr_addr_to_sector_local;
+    g_flash_mgrs[mgr_idx].ops.get_sector_start_addr = bl_flash_mgr_get_sector_start_addr_local;
+    g_flash_mgrs[mgr_idx].initialized = true;
+
+    return BL_SUCCESS;
+}
+
+int bl_flash_mgr_init_cm(uint8_t mgr_idx)
+{
+    if (mgr_idx >= BL_FLASH_MGR_COUNT) {
+        return BL_INVALID_PARAM;
+    }
+
+    int ret = bl_flash_cm_init();
+    if (ret != BL_SUCCESS) {
+        return ret;
+    }
+
+    g_flash_mgrs[mgr_idx].type = BL_FLASH_TYPE_CM;
+    g_flash_mgrs[mgr_idx].flash_ptr = NULL;
+    g_flash_mgrs[mgr_idx].ops.erase = bl_flash_mgr_erase_cm;
+    g_flash_mgrs[mgr_idx].ops.write = bl_flash_mgr_write_cm;
+    g_flash_mgrs[mgr_idx].ops.read = bl_flash_mgr_read_cm;
+    g_flash_mgrs[mgr_idx].ops.flush = bl_flash_mgr_flush_cm;
+    g_flash_mgrs[mgr_idx].ops.get_size = bl_flash_mgr_get_size_cm;
+    g_flash_mgrs[mgr_idx].ops.addr_to_sector = bl_flash_mgr_addr_to_sector_cm;
+    g_flash_mgrs[mgr_idx].ops.get_sector_start_addr = bl_flash_mgr_get_sector_start_addr_cm;
+    g_flash_mgrs[mgr_idx].initialized = true;
+
+    return BL_SUCCESS;
+}
+
+int bl_flash_mgr_deinit(uint8_t mgr_idx)
+{
+    if (mgr_idx >= BL_FLASH_MGR_COUNT) {
+        return BL_INVALID_PARAM;
+    }
+
+    if (!g_flash_mgrs[mgr_idx].initialized) {
+        return BL_INVALID_PARAM;
+    }
+
+    if (g_flash_mgrs[mgr_idx].type == BL_FLASH_TYPE_CM) {
+        bl_flash_cm_deinit();
+    }
+
+    memset(&g_flash_mgrs[mgr_idx], 0, sizeof(bl_flash_mgr_t));
+
+    if (g_active_flash_mgr_idx == mgr_idx) {
+        g_active_flash_mgr_idx = 0xFF;
+    }
+
+    return BL_SUCCESS;
+}
+
+int bl_flash_mgr_activate(uint8_t mgr_idx)
+{
+    if (mgr_idx >= BL_FLASH_MGR_COUNT) {
+        return BL_INVALID_PARAM;
+    }
+
+    if (!g_flash_mgrs[mgr_idx].initialized) {
+        return BL_INVALID_PARAM;
+    }
+
+    g_active_flash_mgr_idx = mgr_idx;
+
+    return BL_SUCCESS;
+}
+
+bl_flash_mgr_t* bl_flash_mgr_get_active(void)
+{
+    if (g_active_flash_mgr_idx >= BL_FLASH_MGR_COUNT) {
+        return NULL;
+    }
+
+    if (!g_flash_mgrs[g_active_flash_mgr_idx].initialized) {
+        return NULL;
+    }
+
+    return &g_flash_mgrs[g_active_flash_mgr_idx];
+}
 
 /**
  * @brief 初始化bootloader协议处理器
  * @param proto 协议处理器指针
- * @param flash Flash驱动指针
  * @return 成功返回BL_SUCCESS
  */
-int bl_proto_init(bl_proto_t *proto, bl_flash_t *flash)
+int bl_proto_init(bl_proto_t *proto)
 {
+    bl_flash_mgr_t *active_mgr = bl_flash_mgr_get_active();
+    if (active_mgr == NULL) {
+        return BL_INVALID_PARAM;
+    }
+
     memset(proto, 0, sizeof(bl_proto_t));
 
     proto->state = BL_PROTO_STATE_IDLE;
     proto->in_bootloader = false;
     proto->last_error = BL_SUCCESS;
-
-    int ret = bl_flash_init(flash);
-    if (ret != BL_SUCCESS) {
-        proto->last_error = ret;
-    }
-    proto->flash = flash;
-
 
     proto->app_start_addr = BL_APP_START_ADDR;
     proto->app_max_size = BL_APP_MAX_SIZE;
@@ -59,6 +243,11 @@ int bl_proto_deinit(bl_proto_t *proto)
 static lwmb_err_t bl_proto_handle_read_registers(bl_proto_t *proto, const bl_proto_request_t *req,
                                    bl_proto_response_t *resp)
 {
+    bl_flash_mgr_t *flash_mgr = bl_flash_mgr_get_active();
+    if (flash_mgr == NULL) {
+        return LWMB_ERR_FRAME;
+    }
+
     if (req->data_len < 4)
     {
         return LWMB_ERR_FRAME;
@@ -97,10 +286,10 @@ static lwmb_err_t bl_proto_handle_read_registers(bl_proto_t *proto, const bl_pro
             reg_value = 0x0000; // 无错误
             break;
         case 0xF100: // FLASH_SIZE (高位)
-            reg_value = (bl_flash_get_size(proto->flash) >> 16) & 0xFFFF;
+            reg_value = (flash_mgr->ops.get_size(flash_mgr->flash_ptr) >> 16) & 0xFFFF;
             break;
         case 0xF101: // FLASH_SIZE (低位)
-            reg_value = bl_flash_get_size(proto->flash) & 0xFFFF;
+            reg_value = flash_mgr->ops.get_size(flash_mgr->flash_ptr) & 0xFFFF;
             break;
         case 0xF102: // FLASH_APP_START (高位)
             reg_value = (proto->app_start_addr >> 16) & 0xFFFF;
@@ -197,6 +386,11 @@ static lwmb_err_t bl_proto_handle_enter_bl(bl_proto_t *proto, bl_proto_response_
 static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_request_t *req,   
                           bl_proto_response_t *resp)
 {
+    bl_flash_mgr_t *flash_mgr = bl_flash_mgr_get_active();
+    if (flash_mgr == NULL) {
+        return LWMB_ERR_FRAME;
+    }
+
     if (req->data_len < 8)
     {
         return LWMB_ERR_FRAME;
@@ -208,7 +402,6 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
                       ((uint32_t)req->data[6] << 8) | req->data[7];
 
     uint32_t start_addr, length;
-
     if (proto_start_addr == 0xFFFFFFFF && proto_length == 0xFFFFFFFF)
     {
         start_addr = proto->app_start_addr;
@@ -220,7 +413,7 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
         length = proto_length;
     }
 
-    uint8_t sector = bl_flash_addr_to_sector(proto->flash, start_addr);
+    uint8_t sector = flash_mgr->ops.addr_to_sector(flash_mgr->flash_ptr, start_addr);
     if (sector == 0xFF)
     {
         resp->data[0] = BL_PROTO_STATUS_INVALID_RANGE;
@@ -228,10 +421,10 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
         return LWMB_OK;
     }
 
-    uint32_t actual_start_addr = bl_flash_get_sector_start_addr(proto->flash, sector);
+    uint32_t actual_start_addr = flash_mgr->ops.get_sector_start_addr(flash_mgr->flash_ptr, sector);
     uint32_t actual_length = 0;
     
-    int result = bl_flash_erase_range(proto->flash, start_addr, length, &actual_start_addr, &actual_length);
+    int result = flash_mgr->ops.erase(flash_mgr->flash_ptr, start_addr, length, &actual_start_addr, &actual_length);
     if (result != BL_SUCCESS)
     {
         resp->data[0] = BL_PROTO_STATUS_ERASE_FAIL;
@@ -271,6 +464,11 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
 static lwmb_err_t bl_proto_handle_write(bl_proto_t *proto, const bl_proto_request_t *req,
                           bl_proto_response_t *resp)
 {
+    bl_flash_mgr_t *flash_mgr = bl_flash_mgr_get_active();
+    if (flash_mgr == NULL) {
+        return LWMB_ERR_FRAME;
+    }
+
     if (req->data_len < 6)
     {
         return LWMB_ERR_FRAME;
@@ -283,7 +481,7 @@ static lwmb_err_t bl_proto_handle_write(bl_proto_t *proto, const bl_proto_reques
     const uint8_t *byte_data = &req->data[6];
 
     // 检查地址范围是否有效
-    uint8_t sector = bl_flash_addr_to_sector(proto->flash, addr);
+    uint8_t sector = flash_mgr->ops.addr_to_sector(flash_mgr->flash_ptr, addr);
     if (sector == 0xFF)
     {
         resp->data[0] = BL_PROTO_STATUS_INVALID_RANGE;
@@ -317,7 +515,7 @@ static lwmb_err_t bl_proto_handle_write(bl_proto_t *proto, const bl_proto_reques
     }
 
     // 调用Flash写入函数（以字为单位）
-    int result = bl_flash_write(proto->flash, addr, word_data, word_length);
+    int result = flash_mgr->ops.write(flash_mgr->flash_ptr, addr, word_data, word_length);
     if (result != BL_SUCCESS)
     {
         resp->data[0] = BL_PROTO_STATUS_WRITE_FAIL;
@@ -394,17 +592,19 @@ static lwmb_err_t bl_proto_handle_jump(bl_proto_t *proto, const bl_proto_request
  */
 static int bl_proto_read_app_info(bl_proto_t *proto, bl_app_info_t *app_info)
 {
-    // 从Flash中读取app_info结构体
-    void* flash_ptr = (void*)BL_APP_INFO_ADDR;
-    void* info_ptr = (void*)app_info;
+    bl_flash_mgr_t *flash_mgr = bl_flash_mgr_get_active();
+    if (flash_mgr == NULL) {
+        return BL_INVALID_PARAM;
+    }
 
-    // 从Flash中读取app_info结构体
-    memcpy(info_ptr, flash_ptr, sizeof(bl_app_info_t));
+    uint8_t* info_ptr = (uint8_t*)app_info;
+    int result = flash_mgr->ops.read(flash_mgr->flash_ptr, BL_APP_INFO_ADDR, info_ptr, sizeof(bl_app_info_t));
+    if (result != BL_SUCCESS) {
+        return result;
+    }
 
-    // 验证app_info结构体本身的有效性（通过magic number）
     if (app_info->magic != 0xDEADBEEF)
     {
-        // app_info结构体无效，清空结构体
         memset(app_info, 0, sizeof(bl_app_info_t));
         return BL_FLASH_ERROR;
     }
@@ -420,17 +620,20 @@ static int bl_proto_read_app_info(bl_proto_t *proto, bl_app_info_t *app_info)
  */
 static int bl_proto_write_app_info(bl_proto_t *proto, const bl_app_info_t *app_info)
 {
-    // 检查app_info地址是否在有效范围内
-    uint8_t sector = bl_flash_addr_to_sector(proto->flash, BL_APP_INFO_ADDR);
+    bl_flash_mgr_t *flash_mgr = bl_flash_mgr_get_active();
+    if (flash_mgr == NULL) {
+        return BL_INVALID_PARAM;
+    }
+
+    uint8_t sector = flash_mgr->ops.addr_to_sector(flash_mgr->flash_ptr, BL_APP_INFO_ADDR);
     if (sector == 0xFF)
     {
         return BL_INVALID_PARAM;
     }
 
-    // 将app_info结构体写入Flash
     const uint16_t *info_ptr = (const uint16_t *)app_info;
-    int result = bl_flash_write(proto->flash, BL_APP_INFO_ADDR, info_ptr, sizeof(bl_app_info_t));
-    bl_flash_cache_flush(proto->flash);
+    int result = flash_mgr->ops.write(flash_mgr->flash_ptr, BL_APP_INFO_ADDR, info_ptr, sizeof(bl_app_info_t));
+    flash_mgr->ops.flush(flash_mgr->flash_ptr);
 
     return result;
 }
@@ -448,8 +651,12 @@ static int bl_proto_write_app_info(bl_proto_t *proto, const bl_app_info_t *app_i
 static lwmb_err_t bl_proto_handle_flush_cache(bl_proto_t *proto, const bl_proto_request_t *req,
                                 bl_proto_response_t *resp)
 {
-    // 刷新FLASH缓存
-    int result = bl_flash_cache_flush(proto->flash);
+    bl_flash_mgr_t *flash_mgr = bl_flash_mgr_get_active();
+    if (flash_mgr == NULL) {
+        return LWMB_ERR_FRAME;
+    }
+
+    int result = flash_mgr->ops.flush(flash_mgr->flash_ptr);
     if (result != BL_SUCCESS)
     {
         resp->data[0] = BL_PROTO_STATUS_ERROR;

@@ -100,49 +100,44 @@ extern "C"
 
     /**
      * @brief 初始化Flash驱动
-     * @param flash Flash设备指针
      * @return 操作结果
      */
-    int bl_flash_init(bl_flash_t *flash);
+    int bl_flash_init(void);
 
     /**
      * @brief 反初始化Flash驱动
-     * @param flash Flash设备指针
      * @return 操作结果
      */
-    int bl_flash_deinit(bl_flash_t *flash);
+    int bl_flash_deinit(void);
 
     /**
      * @brief 擦除指定扇区
-     * @param flash Flash设备指针
      * @param sector_num 物理扇区号(1-13)
      * @return 操作结果
      */
-    int bl_flash_erase_sector(bl_flash_t *flash, uint16_t sector_num);
+    int bl_flash_erase_sector(uint16_t sector_num);
 
     /**
      * @brief 擦除指定地址范围
-     * @param flash Flash设备指针
      * @param addr 起始地址(16位字地址)
      * @param size 擦除大小(以16位字为单位)
      * @param actual_addr 实际擦除起始地址(16位字地址)
      * @param actual_size 实际擦除大小(以16位字为单位)
      * @return 操作结果
      */
-    int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size);
+    int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size);
 
     /**
      * @brief 从Flash读取数据
      *
      * 读取操作直接访问Flash，不经过缓存。
      *
-     * @param flash Flash设备指针
      * @param addr 读取起始地址(16位字地址)
      * @param data 读取数据缓冲区指针
      * @param size 读取数据大小(以16位字为单位)
      * @return 操作结果
      */
-    int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint8_t *data, uint32_t size);
+    int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size);
 
     /**
      * @brief 向Flash写入数据
@@ -154,61 +149,41 @@ extern "C"
      * 4. 标记受影响的块为脏
      * 5. 处理跨页写入
      *
-     * @param flash Flash设备指针
      * @param addr 写入起始地址(16位字地址)
      * @param data 写入数据缓冲区指针
      * @param size 写入数据大小(以16位字为单位)
      * @return 操作结果
      */
-    int bl_flash_write(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint32_t size);
-
-    /**
-     * @brief 初始化Flash缓存
-     * @param flash Flash设备指针
-     * @return 操作结果
-     */
-    int bl_flash_cache_init(bl_flash_t *flash);
+    int bl_flash_write(uint32_t addr, const uint16_t *data, uint32_t size);
 
     /**
      * @brief 将缓存中所有脏块写回Flash
      *
      * 遍历脏位图，将所有标记为脏的块逐一写回Flash。
      *
-     * @param flash Flash设备指针
      * @return 操作结果
      */
-    int bl_flash_cache_flush(bl_flash_t *flash);
-
-    /**
-     * @brief 获取扇区信息
-     * @param flash Flash设备指针
-     * @param sector_num 物理扇区号(1-13)
-     * @return 扇区信息指针，失败返回NULL
-     */
-    bl_flash_sector_info_t *bl_flash_get_sector_info(bl_flash_t *flash, uint8_t sector_num);
+    int bl_flash_cache_flush(void);
 
     /**
      * @brief 根据地址查找所在扇区
-     * @param flash Flash设备指针
      * @param addr 16位字地址
      * @return 物理扇区号(1-13)，未找到返回0xFF
      */
-    uint8_t bl_flash_addr_to_sector(bl_flash_t *flash, uint32_t addr);
+    uint8_t bl_flash_addr_to_sector(uint32_t addr);
 
     /**
      * @brief 获取Flash总大小
-     * @param flash Flash设备指针
      * @return Flash总大小(以16位字为单位)
      */
-    uint32_t bl_flash_get_size(bl_flash_t *flash);
+    uint32_t bl_flash_get_size(void);
 
     /**
      * @brief 获取扇区起始地址
-     * @param flash Flash设备指针
      * @param sector_num 物理扇区号(1-13)
      * @return 扇区起始地址(16位字地址)，失败返回0xFFFFFFFF
      */
-    uint32_t bl_flash_get_sector_start_addr(bl_flash_t *flash, uint8_t sector_num);
+    uint32_t bl_flash_get_sector_start_addr(uint8_t sector_num);
 
 #ifdef __cplusplus
 }

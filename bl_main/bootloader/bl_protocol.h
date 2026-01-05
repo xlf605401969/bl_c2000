@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include "bl_common.h"
 #include "bl_flash.h"
+#include "bl_flash_cm.h"
 #include "bl_main.h"
 #include "lwmb.h"
 
@@ -74,6 +75,34 @@ typedef enum
     BL_PROTO_TARGET_MAX
 } bl_proto_target_t;
 
+typedef enum
+{
+    BL_FLASH_TYPE_LOCAL = 0,
+    BL_FLASH_TYPE_CM = 1,
+    BL_FLASH_TYPE_MAX
+} bl_flash_type_t;
+
+typedef struct
+{
+    int (*erase)(void *flash_ptr, uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size);
+    int (*write)(void *flash_ptr, uint32_t addr, const uint16_t* data, uint32_t size);
+    int (*read)(void *flash_ptr, uint32_t addr, uint8_t *data, uint32_t size);
+    int (*flush)(void *flash_ptr);
+    uint32_t (*get_size)(void *flash_ptr);
+    uint8_t (*addr_to_sector)(void *flash_ptr, uint32_t addr);
+    uint32_t (*get_sector_start_addr)(void *flash_ptr, uint8_t sector_num);
+} bl_flash_ops_t;
+
+typedef struct
+{
+    bl_flash_type_t type;
+    bl_flash_ops_t ops;
+    void *flash_ptr;
+    bool initialized;
+} bl_flash_mgr_t;
+
+#define BL_FLASH_MGR_COUNT 2
+
 /**
  * @brief 应用程序信息结构体
  *
@@ -116,12 +145,17 @@ typedef struct
     uint32_t app_max_size;
     bool in_bootloader;
     int32_t last_error;
-    bl_flash_t *flash;
     bl_app_info_t app_info;
 } bl_proto_t;
 
-int bl_proto_init(bl_proto_t *proto, bl_flash_t *flash);
+int bl_proto_init(bl_proto_t *proto);
 int bl_proto_deinit(bl_proto_t *proto);
+
+int bl_flash_mgr_init_local(uint8_t mgr_idx);
+int bl_flash_mgr_init_cm(uint8_t mgr_idx);
+int bl_flash_mgr_deinit(uint8_t mgr_idx);
+int bl_flash_mgr_activate(uint8_t mgr_idx);
+bl_flash_mgr_t* bl_flash_mgr_get_active(void);
 
 lwmb_err_t bl_proto_process_request(bl_proto_t *proto, const bl_proto_request_t *req,
                                 bl_proto_response_t *resp);
