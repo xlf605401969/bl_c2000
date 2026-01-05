@@ -494,3 +494,38 @@ uint8_t bl_flash_addr_to_sector(bl_flash_t *flash, uint32_t addr)
 
     return 0xFF;
 }
+
+/**
+ * @brief 获取Flash总大小
+ * @param flash Flash设备指针
+ * @return Flash总大小(以16位字为单位)
+ */
+uint32_t bl_flash_get_size(bl_flash_t *flash)
+{
+    if (flash == NULL) {
+        return 0;
+    }
+
+    return flash->size;
+}
+
+/**
+ * @brief 获取扇区起始地址
+ * @param flash Flash设备指针
+ * @param sector_num 物理扇区号(1-13)
+ * @return 扇区起始地址(16位字地址)，失败返回0xFFFFFFFF
+ */
+uint32_t bl_flash_get_sector_start_addr(bl_flash_t *flash, uint8_t sector_num)
+{
+    if (flash == NULL || flash->sectors == NULL) {
+        return 0xFFFFFFFF;
+    }
+
+    for (int i = 0; i < flash->sector_count; i++) {
+        if (flash->sectors[i].sector_num == sector_num) {
+            return flash->sectors[i].start_address;
+        }
+    }
+
+    return 0xFFFFFFFF;
+}

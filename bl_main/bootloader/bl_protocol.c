@@ -97,10 +97,10 @@ static lwmb_err_t bl_proto_handle_read_registers(bl_proto_t *proto, const bl_pro
             reg_value = 0x0000; // 无错误
             break;
         case 0xF100: // FLASH_SIZE (高位)
-            reg_value = (proto->flash->size >> 16) & 0xFFFF;
+            reg_value = (bl_flash_get_size(proto->flash) >> 16) & 0xFFFF;
             break;
         case 0xF101: // FLASH_SIZE (低位)
-            reg_value = proto->flash->size & 0xFFFF;
+            reg_value = bl_flash_get_size(proto->flash) & 0xFFFF;
             break;
         case 0xF102: // FLASH_APP_START (高位)
             reg_value = (proto->app_start_addr >> 16) & 0xFFFF;
@@ -228,7 +228,7 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
         return LWMB_OK;
     }
 
-    uint32_t actual_start_addr = proto->flash->sectors[sector].start_address;
+    uint32_t actual_start_addr = bl_flash_get_sector_start_addr(proto->flash, sector);
     uint32_t actual_length = 0;
     
     int result = bl_flash_erase_range(proto->flash, start_addr, length, &actual_start_addr, &actual_length);
