@@ -8,7 +8,7 @@
 
 #include <string.h>
 #include "bl_flash.h"
-#include "FlashAPI/F021.h"
+#include "FlashAPI/F021_F2838x_C28x.h"
 #include "device/driverlib/flash.h"
 #include "board.h"
 
