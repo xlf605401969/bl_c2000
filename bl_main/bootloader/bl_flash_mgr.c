@@ -8,27 +8,22 @@ static uint8_t g_active_flash_mgr_idx = 0xFF;
 
 static int bl_flash_mgr_read_cm(uint32_t addr, uint16_t *data, uint32_t size)
 {
-    (void)addr;
-    (void)data;
-    (void)size;
-    return BL_ERROR;
+    return bl_flash_cm_read(addr, data, size);
 }
 
 static uint32_t bl_flash_mgr_get_size_cm(void)
 {
-    return 0;
+    return bl_flash_cm_get_size();
 }
 
 static uint8_t bl_flash_mgr_addr_to_sector_cm(uint32_t addr)
 {
-    (void)addr;
-    return 0xFF;
+    return bl_flash_cm_addr_to_sector(addr);
 }
 
 static uint32_t bl_flash_mgr_get_sector_start_addr_cm(uint8_t sector_num)
 {
-    (void)sector_num;
-    return 0xFFFFFFFF;
+    return bl_flash_cm_get_sector_start_addr(sector_num);
 }
 
 int bl_flash_mgr_init_local(uint8_t mgr_idx)

@@ -14,9 +14,10 @@ extern "C"
 
 typedef enum
 {
-    BL_FLASH_CM_CMD_ERASE = 1,
-    BL_FLASH_CM_CMD_WRITE = 2,
-    BL_FLASH_CM_CMD_FLUSH = 3
+    BL_FLASH_CM_CMD_READ = 0x04,
+    BL_FLASH_CM_CMD_ERASE = 0x66,
+    BL_FLASH_CM_CMD_WRITE = 0x67,
+    BL_FLASH_CM_CMD_FLUSH = 0x68
 } bl_flash_cm_cmd_type_t;
 
 typedef struct
@@ -25,6 +26,7 @@ typedef struct
     uint32_t addr;
     uint32_t size;
     uint32_t data_offset;
+    uint16_t data[BL_FLASH_CM_DATA_BUFFER_SIZE];
 } bl_flash_cm_cmd_t;
 
 typedef struct
@@ -33,6 +35,7 @@ typedef struct
     uint32_t actual_addr;
     uint32_t actual_size;
     uint32_t written_size;
+    uint16_t data[BL_FLASH_CM_DATA_BUFFER_SIZE];
 } bl_flash_cm_resp_t;
 
 int bl_flash_cm_init(void);
@@ -43,7 +46,15 @@ int bl_flash_cm_erase(uint32_t addr, uint32_t size, uint32_t* actual_addr, uint3
 
 int bl_flash_cm_write(uint32_t addr, const uint16_t* data, uint32_t size);
 
+int bl_flash_cm_read(uint32_t addr, uint16_t *data, uint32_t size);
+
 int bl_flash_cm_flush(void);
+
+uint32_t bl_flash_cm_get_size(void);
+
+uint8_t bl_flash_cm_addr_to_sector(uint32_t addr);
+
+uint32_t bl_flash_cm_get_sector_start_addr(uint8_t sector_num);
 
 #ifdef __cplusplus
 }

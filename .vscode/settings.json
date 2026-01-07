@@ -16,6 +16,12 @@
         "bl_protocol.h": "c",
         "board.h": "c",
         "*.template": "c",
-        "utility": "c"
+        "utility": "c",
+        "lwmb_port.h": "c",
+        "lwmb.h": "c",
+        "bl_cm_ipc.h": "c",
+        "driverlib_cm.h": "c",
+        "isr.h": "c",
+        "cm.h": "c"
     }
 }

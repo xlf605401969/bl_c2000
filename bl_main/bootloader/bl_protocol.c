@@ -551,6 +551,73 @@ static lwmb_err_t bl_proto_handle_reset(bl_proto_t *proto, bl_proto_response_t *
 }
 
 /**
+ * @brief 处理设置会话目标请求(功能码0x70)
+ * @param proto 协议处理器指针
+ * @param req 请求数据
+ * @param resp 响应数据
+ * @return 帧数据错误返回LWMB_ERR_FRAME，协议层正确但执行操作有问题返回LWMB_OK
+ *
+ * 请求格式：[目标类型(1字节)]
+ * 响应格式：[状态(1字节)]
+ * 帧数据错误：数据长度不足
+ * 协议错误：目标类型无效
+ */
+static lwmb_err_t bl_proto_handle_set_target(bl_proto_t *proto, const bl_proto_request_t *req,
+                              bl_proto_response_t *resp)
+{
+    if (req->data_len < 1)
+    {
+        return LWMB_ERR_FRAME;
+    }
+
+    uint8_t target = req->data[0];
+    uint8_t mgr_idx;
+
+    switch (target)
+    {
+    case BL_PROTO_TARGET_LOCAL_MCU:
+        mgr_idx = 0;
+        break;
+    case BL_PROTO_TARGET_SLAVE_MCU1:
+        mgr_idx = 1;
+        break;
+    case BL_PROTO_TARGET_SLAVE_MCU2:
+        mgr_idx = 1;
+        break;
+    default:
+        resp->data[0] = BL_PROTO_STATUS_INVALID_RANGE;
+        resp->data_len = 1;
+        return LWMB_OK;
+    }
+
+    int result = bl_flash_mgr_activate(mgr_idx);
+    if (result != BL_SUCCESS)
+    {
+        resp->data[0] = BL_PROTO_STATUS_ERROR;
+        resp->data_len = 1;
+        return LWMB_OK;
+    }
+
+    bl_flash_mgr_t *flash_mgr = bl_flash_mgr_get_active();
+    if (flash_mgr == NULL)
+    {
+        resp->data[0] = BL_PROTO_STATUS_ERROR;
+        resp->data_len = 1;
+        return LWMB_OK;
+    }
+
+    proto->app_start_addr = BL_APP_START_ADDR;
+    proto->app_max_size = flash_mgr->ops.get_size();
+
+    bl_proto_read_app_info(proto, &proto->app_info);
+
+    resp->data[0] = BL_PROTO_STATUS_SUCCESS;
+    resp->data_len = 1;
+
+    return LWMB_OK;
+}
+
+/**
  * @brief 处理所有协议请求的主函数
  * @param proto 协议处理器指针
  * @param req 请求数据
@@ -591,6 +658,9 @@ lwmb_err_t bl_proto_process_request(bl_proto_t *proto, const bl_proto_request_t 
 
     case BL_PROTO_FUNC_FINISH_APP_WRITE:
         return bl_proto_handle_finish_app_write(proto, req, resp);
+
+    case BL_PROTO_FUNC_SET_TARGET:
+        return bl_proto_handle_set_target(proto, req, resp);
 
     default:
         return LWMB_ERR_FUNC; // 协议层正确，但功能码不支持
