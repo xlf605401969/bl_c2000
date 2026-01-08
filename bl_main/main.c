@@ -1,26 +1,8 @@
 #include "bl_main.h"
+#include "bootloader/bl_time.h"
 #include "board.h"
 
-
-#define TIMER_PERIOD_US 1000000UL
-#define TIMER_TICK_PERIOD_US 1000
-int32_t last_cnt = 0;
-int32_t tick_cnt = 0;
-
-
-void check_timer(void)
-{
-    int32_t current_cnt = CPUTimer_getTimerCount(BASE_1ms_TIMER_BASE);
-    // 减计数，判断是否到了1ms
-    if (last_cnt - current_cnt >= TIMER_TICK_PERIOD_US) {
-        last_cnt = current_cnt;
-        bl_main_tick(TIMER_TICK_PERIOD_US);
-        tick_cnt += 1;
-    }
-    else if (last_cnt - current_cnt < 0) {
-        last_cnt += TIMER_PERIOD_US;
-    }
-}
+static bl_timeout_t g_main_tick_timeout;
 
 int main_in_ram()
 {
@@ -30,10 +12,17 @@ int main_in_ram()
 
     bl_main_init();
 
+    bl_time_init();
+
+    bl_timeout_init_periodic(&g_main_tick_timeout, 100);
+
     CPUTimer_startTimer(BASE_1ms_TIMER_BASE);
 
     while (1) {
-        check_timer();
+        if (bl_timeout_is_expired(&g_main_tick_timeout)) {
+            bl_main_tick(100);
+        }
+        
         bl_main_process();
     }
 }
