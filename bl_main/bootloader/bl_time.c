@@ -1,3 +1,10 @@
+/**
+ * @file bl_time.c
+ * @brief 时间管理实现
+ *
+ * 提供基于硬件定时器的延时和超时检查功能。
+ */
+
 #include "bl_time.h"
 #include "board.h"
 

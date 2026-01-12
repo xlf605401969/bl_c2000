@@ -1,3 +1,10 @@
+/**
+ * @file bl_main.c
+ * @brief Bootloader主模块实现
+ *
+ * 提供bootloader的初始化、主循环处理和定时器回调功能。
+ */
+
 #include "bl_main.h"
 #include "lwmodbus_bl/lwmb.h"
 #include "lwmodbus_bl/lwmb_port.h"

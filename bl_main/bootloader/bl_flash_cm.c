@@ -1,3 +1,10 @@
+/**
+ * @file bl_flash_cm.c
+ * @brief CM Flash驱动实现
+ *
+ * 通过IPC与CM核心通信，实现对CM Flash的远程操作。
+ */
+
 #include <string.h>
 #include "bl_flash_cm.h"
 #include "bl_time.h"

@@ -1,6 +1,3 @@
-#ifndef BL_PROTOCOL_H
-#define BL_PROTOCOL_H
-
 /**
  * @file bl_protocol.h
  * @brief Bootloader协议处理接口定义
@@ -8,6 +5,9 @@
  * 基于Modbus的引导加载程序协议，支持本地MCU和从MCU的固件更新。
  * 使用会话状态机制实现通用的擦除、编程、验证和跳转操作。
  */
+
+#ifndef BL_PROTOCOL_H
+#define BL_PROTOCOL_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -121,9 +121,31 @@ typedef struct
     bl_app_info_t app_info;
 } bl_proto_t;
 
+/**
+ * @brief 初始化bootloader协议处理器
+ * @param proto 协议处理器指针
+ * @return 成功返回BL_SUCCESS
+ */
 int bl_proto_init(bl_proto_t *proto);
+
+/**
+ * @brief 反初始化bootloader协议处理器
+ * @param proto 协议处理器指针
+ * @return 成功返回BL_SUCCESS
+ */
 int bl_proto_deinit(bl_proto_t *proto);
 
+/**
+ * @brief 处理所有协议请求的主函数
+ * @param proto 协议处理器指针
+ * @param req 请求数据
+ * @param resp 响应数据
+ * @return 帧数据错误返回LWMB_ERR_FRAME，协议层正确但执行操作有问题返回LWMB_OK
+ *
+ * 根据功能码分发到相应的处理函数
+ * 帧数据错误：参数检查失败
+ * 协议错误：不支持的功能码
+ */
 lwmb_err_t bl_proto_process_request(bl_proto_t *proto, const bl_proto_request_t *req,
                                 bl_proto_response_t *resp);
 

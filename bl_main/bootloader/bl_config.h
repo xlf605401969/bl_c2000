@@ -1,3 +1,10 @@
+/**
+ * @file bl_config.h
+ * @brief Bootloader配置参数定义
+ *
+ * 定义应用程序的起始地址、最大大小等配置参数。
+ */
+
 #ifndef BL_CONFIG_H
 #define BL_CONFIG_H
 

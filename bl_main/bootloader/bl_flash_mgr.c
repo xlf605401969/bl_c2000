@@ -1,3 +1,10 @@
+/**
+ * @file bl_flash_mgr.c
+ * @brief Flash管理器实现
+ *
+ * 提供统一的Flash操作接口，支持本地Flash和CM Flash的切换。
+ */
+
 #include "bl_flash_mgr.h"
 #include "bl_flash.h"
 #include "bl_flash_cm.h"

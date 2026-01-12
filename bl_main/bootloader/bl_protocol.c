@@ -5,11 +5,6 @@ uint16_t word_data[(BL_PROTO_MAX_RX_DATA_LEN + 1) / 2];
 
 static int bl_proto_read_app_info(bl_proto_t *proto, bl_app_info_t *app_info);
 
-/**
- * @brief 初始化bootloader协议处理器
- * @param proto 协议处理器指针
- * @return 成功返回BL_SUCCESS
- */
 int bl_proto_init(bl_proto_t *proto)
 {
     bl_flash_mgr_t *active_mgr = bl_flash_mgr_get_active();
@@ -31,11 +26,6 @@ int bl_proto_init(bl_proto_t *proto)
     return BL_SUCCESS;
 }
 
-/**
- * @brief 反初始化bootloader协议处理器
- * @param proto 协议处理器指针
- * @return 成功返回BL_SUCCESS
- */
 int bl_proto_deinit(bl_proto_t *proto)
 {
     return BL_SUCCESS;
@@ -541,6 +531,15 @@ static lwmb_err_t bl_proto_handle_finish_app_write(bl_proto_t *proto, const bl_p
     return LWMB_OK;
 }
 
+/**
+ * @brief 处理重置请求(功能码0x72)
+ * @param proto 协议处理器指针
+ * @param resp 响应数据
+ * @return 成功返回BL_SUCCESS，失败返回错误码
+ *
+ * 请求格式：无参数
+ * 响应格式：[状态(1字节)]
+ */
 static lwmb_err_t bl_proto_handle_reset(bl_proto_t *proto, bl_proto_response_t *resp)
 {
     //:TODO 复位芯片

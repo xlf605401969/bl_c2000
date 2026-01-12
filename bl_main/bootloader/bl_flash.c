@@ -164,13 +164,6 @@ int bl_flash_init(void)
     return bl_flash_cache_init();
 }
 
-/**
- * @brief 反初始化Flash驱动
- * @param flash Flash设备指针
- * @return 成功返回BL_SUCCESS，失败返回错误码
- *
- * 确保在关闭前将所有缓存数据写回Flash
- */
 int bl_flash_deinit(void)
 {
     if (!g_bl_flash.initialized) {
@@ -207,15 +200,7 @@ int bl_flash_erase_sector(uint16_t sector_num)
 }
 
 /**
- * @brief 擦除指定地址范围内的Flash
- * @param flash Flash设备指针
- * @param addr 起始地址(16位字地址)
- * @param size 擦除大小(以16位字为单位)
- * @param actual_addr 实际擦除起始地址(16位字地址)
- * @param actual_size 实际擦除大小(以16位字为单位)
- * @return 成功返回BL_SUCCESS，失败返回错误码
- *
- * 注意：此函数的size参数以16位字为单位，与其他读写函数不同。
+ * @note 此函数的size参数以16位字为单位。
  */
 int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size)
 {
@@ -270,17 +255,6 @@ int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t* actual_addr, ui
     return BL_SUCCESS;
 }
 
-/**
- * @brief 从Flash读取数据
- * @param flash Flash设备指针
- * @param addr 读取起始地址(16位字地址)
- * @param data 读取数据缓冲区指针(16位字数组)
- * @param size 读取数据大小(以字节为单位)
- * @return 成功返回BL_SUCCESS，失败返回错误码
- *
- * 读取操作直接访问Flash，不经过缓存。
- * 直接使用memcpy进行数据复制。
- */
 int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size)
 {
     if (!g_bl_flash.initialized || data == NULL) {
@@ -294,13 +268,7 @@ int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size)
 }
 
 /**
- * @brief 向Flash写入数据
- * @param flash Flash设备指针
- * @param addr 写入起始地址(16位字地址)
- * @param data 写入数据缓冲区指针
- * @param size 写入数据大小(以16位字为单位)
- * @return 成功返回BL_SUCCESS，失败返回错误码
- *
+ * @details
  * 写入流程：
  * 1. 计算当前地址所在的缓存页地址(page_addr)
  *    - 页对齐：page_addr = addr & ~(BL_FLASH_CACHE_PAGE_SIZE - 1)
@@ -310,7 +278,7 @@ int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size)
  * 2. 检查是否需要切换缓存页
  *    - 如果缓存空闲或base_addr不匹配当前页，需要：
  *      a. 先刷新脏缓存(bl_flash_cache_flush)
- *      b. 加载新页的原始数据到缓存
+ *      b. 清空缓存页数据
  * 
  * 3. 将新数据复制到缓存对应位置
  * 
@@ -381,10 +349,7 @@ static int bl_flash_cache_init(void)
 }
 
 /**
- * @brief 将缓存中所有脏块写回Flash
- * @param flash Flash设备指针
- * @return 成功返回BL_SUCCESS，失败返回错误码
- *
+ * @details
  * 写回流程：
  * 1. 遍历所有块，检查脏位图
  * 2. 对于每个脏块：
@@ -462,12 +427,6 @@ static bl_flash_sector_info_t *bl_flash_get_sector_info(uint8_t sector_num)
     return NULL;
 }
 
-/**
- * @brief 根据地址查找所在扇区
- * @param flash Flash设备指针
- * @param addr 16位字地址
- * @return 物理扇区号(1-13)，未找到返回0xFF
- */
 uint8_t bl_flash_addr_to_sector(uint32_t addr)
 {
     for (int i = 0; i < g_bl_flash.sector_count; i++) {
@@ -481,22 +440,11 @@ uint8_t bl_flash_addr_to_sector(uint32_t addr)
     return 0xFF;
 }
 
-/**
- * @brief 获取Flash总大小
- * @param flash Flash设备指针
- * @return Flash总大小(以16位字为单位)
- */
 uint32_t bl_flash_get_size(void)
 {
     return g_bl_flash.size;
 }
 
-/**
- * @brief 获取扇区起始地址
- * @param flash Flash设备指针
- * @param sector_num 物理扇区号(1-13)
- * @return 扇区起始地址(16位字地址)，失败返回0xFFFFFFFF
- */
 uint32_t bl_flash_get_sector_start_addr(uint8_t sector_num)
 {
     for (int i = 0; i < g_bl_flash.sector_count; i++) {

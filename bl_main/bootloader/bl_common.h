@@ -1,3 +1,10 @@
+/**
+ * @file bl_common.h
+ * @brief Bootloader公共定义
+ *
+ * 定义通用的返回值和错误码。
+ */
+
 #ifndef BL_H
 #define BL_H
 
