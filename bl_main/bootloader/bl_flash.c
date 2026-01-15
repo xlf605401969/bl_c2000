@@ -262,7 +262,7 @@ int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size)
     }
 
     uint32_t word_count = (size + 1) / 2;
-    memcpy(data, (uint16_t *)addr, word_count * sizeof(uint16_t));
+    memcpy(data, (void *)addr, word_count * sizeof(uint16_t));
 
     return BL_SUCCESS;
 }
@@ -293,6 +293,9 @@ int bl_flash_write(uint32_t addr, const uint16_t *data, uint32_t size)
         return BL_INVALID_PARAM;
     }
 
+    /* 由于CM内存宽度为8bit，size应乘2, 自动适配CPU1与CM */
+    size *= sizeof(uint16_t);
+
     uint32_t write_offset = 0;
     uint32_t remaining = size;
 
@@ -312,10 +315,11 @@ int bl_flash_write(uint32_t addr, const uint16_t *data, uint32_t size)
             
             g_bl_flash.cache.base_addr = page_addr;
             g_bl_flash.cache.state = BL_FLASH_CACHE_STATE_ACTIVE;
-            memcpy(g_bl_flash.cache.data, (uint16_t *)page_addr, BL_FLASH_CACHE_PAGE_SIZE * sizeof(uint16_t));
+            /* 从Flash读取当前页数据到缓存 */
+             memcpy(g_bl_flash.cache.data, (void *)page_addr, BL_FLASH_CACHE_PAGE_SIZE);
         }
 
-        memcpy(&g_bl_flash.cache.data[offset_in_page], &data[write_offset], write_size * sizeof(uint16_t));
+        memcpy(&g_bl_flash.cache.data[offset_in_page], &data[write_offset], write_size);
 
         uint32_t start_block = offset_in_page / BL_FLASH_CACHE_BLOCK_SIZE;
         uint32_t end_block = (offset_in_page + write_size - 1) / BL_FLASH_CACHE_BLOCK_SIZE;
@@ -382,11 +386,11 @@ int bl_flash_cache_flush(void)
 
         uint32_t block_offset = block_idx * BL_FLASH_CACHE_BLOCK_SIZE;
         uint32_t write_addr = g_bl_flash.cache.base_addr + block_offset;
-        uint16_t words_16 = (uint16_t)BL_FLASH_CACHE_BLOCK_SIZE;
+        uint16_t len = (uint16_t)BL_FLASH_CACHE_BLOCK_SIZE;
 
         status = Fapi_issueProgrammingCommand((uint32_t *)write_addr, 
                                                &g_bl_flash.cache.data[block_offset], 
-                                               words_16, 
+                                               len, 
                                                NULL, 
                                                0, 
                                                Fapi_AutoEccGeneration);
