@@ -26,9 +26,6 @@ extern "C"
 #define BL_PROTO_MAJOR_VERSION 0x01        /**< 协议主版本号 */
 #define BL_PROTO_MINOR_VERSION 0x00        /**< 协议次版本号 */
 
-#define BL_APP_INFO_SIZE 64                                     /**< app_info结构体大小(按地址) */
-#define BL_APP_INFO_ADDR (BL_APP_START_ADDR - BL_APP_INFO_SIZE) /**< app_info结构体存储地址 */
-
 /**
  * @brief 协议功能码定义
  */
@@ -53,6 +50,7 @@ extern "C"
 #define BL_PROTO_STATUS_ERASE_FAIL 0x03    /**< 擦除失败 */
 #define BL_PROTO_STATUS_WRITE_FAIL 0x04    /**< 写入失败 */
 #define BL_PROTO_STATUS_ADDR_UNALIGN 0x05  /**< 地址未对齐 */
+#define BL_PROTO_STATUS_NO_APP_INFO 0x06  /**< 无应用程序信息 */
 #define BL_PROTO_STATUS_ERROR 0xFF         /**< 错误 */
 
 #define BL_PROTO_TARGET_LOCAL 0x00
@@ -76,25 +74,6 @@ typedef enum
     BL_PROTO_TARGET_MAX
 } bl_proto_target_t;
 
-/**
- * @brief 应用程序信息结构体
- *
- * 存储在应用程序起始地址前64字节的位置，包含应用程序的元数据信息
- */
-typedef struct
-{
-    uint32_t magic;         /**< 魔数标识 (0xDEADBEEF) */
-    uint8_t valid_flag;     /**< 有效标志位 (0xAA = 有效) */
-    uint32_t entry_addr;    /**< 应用程序入口地址 */
-    uint16_t major_version; /**< 主版本号 */
-    uint16_t minor_version; /**< 次版本号 */
-    uint32_t build_version; /**< 构建版本号 */
-    uint32_t app_length;    /**< 应用程序长度 (末地址-首地址) */
-    uint32_t crc32;         /**< CRC32校验码 */
-    uint32_t timestamp;     /**< 时间戳 */
-    uint8_t reserved[3];   /**< 保留字段，用于未来扩展 */
-} bl_app_info_t;
-
 typedef struct
 {
     uint8_t slave_addr;
@@ -114,6 +93,7 @@ typedef struct
 typedef struct
 {
     bl_proto_state_t state;
+    uint32_t app_entry_addr;
     uint32_t app_start_addr;
     uint32_t app_max_size;
     bool in_bootloader;

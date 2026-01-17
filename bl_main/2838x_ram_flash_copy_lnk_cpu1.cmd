@@ -49,11 +49,17 @@ SECTIONS
 	.const :	LOAD = FLASH_PROG_ALL,
 			    RUN = RAM_PROG_ALL,
 			    ALIGN(4)
+	.switch:    LOAD = FLASH_PROG_ALL,
+			    RUN = RAM_PROG_ALL,
+                LOAD_START(_Flash_switch_Start),
+                LOAD_SIZE(_Flash_switch_Size),
+                RUN_START(_Ram_switch_Start),
+			    ALIGN(4)
 
 
    .reset           : > RESET, TYPE = DSECT /* not used, */
    .stack           : > RAMM0
-   .bss             : > RAMM1
+   .bss             : > RAMM1 | RAMD0
    .bss:output      : > RAMM1
    .sysmem          : > RAMM1
 

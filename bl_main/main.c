@@ -28,6 +28,7 @@ int main_in_ram()
 }
 
 extern uint32_t _Ram_ramfunc_Start, _Flash_ramfunc_Start, _Flash_ramfunc_Size;
+extern uint32_t _Ram_switch_Start, _Flash_switch_Start, _Flash_switch_Size;
 
 __attribute__((section(".flash_res_funcs")))
 int main()
@@ -37,6 +38,14 @@ int main()
     uint16_t* targetAddr = (uint16_t*)&_Ram_ramfunc_Start;
 
     for (uint32_t i = 0; i < (uint32_t)&_Flash_ramfunc_Size; i++)
+    {
+        *(targetAddr++) = *(sourceAddr++);
+    }
+
+    sourceAddr = (uint16_t*)&_Flash_switch_Start;
+    targetAddr = (uint16_t*)&_Ram_switch_Start;
+
+    for (uint32_t i = 0; i < (uint32_t)&_Flash_switch_Size; i++)
     {
         *(targetAddr++) = *(sourceAddr++);
     }
