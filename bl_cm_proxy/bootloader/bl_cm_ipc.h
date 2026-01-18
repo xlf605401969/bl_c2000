@@ -24,16 +24,8 @@ typedef struct
     uint32_t cmd;
     uint32_t addr;
     uint32_t size;
-    uint32_t data_offset;
-} bl_flash_cm_cmd_t;
-
-typedef struct
-{
-    int32_t result;
-    uint32_t actual_addr;
-    uint32_t actual_size;
-    uint32_t written_size;
-} bl_flash_cm_resp_t;
+    uint16_t data_start;
+} bl_flash_cm_ipc_t;
 
 void bl_flash_cm_ipc_init(void);
 

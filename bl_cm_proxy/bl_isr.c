@@ -15,6 +15,4 @@ void cpu1tocm_ipc0_isr(void)
     if (IPC_isFlagBusyRtoL(IPC_CM_L_CPU1_R, IPC_FLAG0)) {
         bl_flash_cm_ipc_process_cmd();
     }
-
-    Interrupt_clearACKGroup(INTERRUPT_ACK_GROUP8);
 }
