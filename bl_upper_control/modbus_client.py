@@ -223,14 +223,8 @@ class BootloaderClient:
         print("成功刷新FLASH缓存")
         return True
 
-    def complete_app_write(self, major_version: int, minor_version: int,
-                          build_version: int, app_length: int, crc32: int,
-                          timestamp: int) -> bool:
-        request = self._build_request(0x6A, struct.pack('>BBHIHHI',
-                                                        major_version, minor_version,
-                                                        build_version, app_length,
-                                                        (crc32 >> 16) & 0xFFFF, crc32 & 0xFFFF,
-                                                        timestamp))
+    def complete_app_write(self) -> bool:
+        request = self._build_request(0x6A, b'')
         response = self._send_request(request, 0x6A)
 
         if response is None:
@@ -245,7 +239,7 @@ class BootloaderClient:
             return False
 
         status = data[0]
-        if status != 0x00:
+        if status != 0x00 and status != 0x06:
             print(f"完成APP写入失败, 状态码: {status:#x}")
             return False
 

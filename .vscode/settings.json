@@ -22,6 +22,10 @@
         "bl_cm_ipc.h": "c",
         "driverlib_cm.h": "c",
         "isr.h": "c",
-        "cm.h": "c"
+        "cm.h": "c",
+        "bl_isr.h": "c",
+        "bl_flash_8bit.h": "c",
+        "*.rh": "c",
+        "optional": "c"
     }
 }

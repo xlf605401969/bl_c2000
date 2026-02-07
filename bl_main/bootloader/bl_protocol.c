@@ -209,7 +209,7 @@ static lwmb_err_t bl_proto_handle_enter_bl(bl_proto_t *proto, bl_proto_response_
  * @return 帧数据错误返回LWMB_ERR_FRAME，协议层正确但执行操作有问题返回LWMB_OK
  *
  * 请求格式：[起始地址(4字节)][擦除长度(4字节)]
- * 响应格式：[起始地址(4字节)][擦除长度(4字节)]
+ * 响应格式：[状态][起始地址(4字节)][擦除长度(4字节)]
  * 帧数据错误：数据长度不足
  * 协议错误：地址无效、擦除失败
  */
@@ -263,6 +263,7 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
         return LWMB_OK;
     }
 
+    resp->data[0] = BL_PROTO_STATUS_SUCCESS;
     resp->data[1] = (actual_start_addr >> 24) & 0xFF;
     resp->data[2] = (actual_start_addr >> 16) & 0xFF;
     resp->data[3] = (actual_start_addr >> 8) & 0xFF;
@@ -271,7 +272,6 @@ static lwmb_err_t bl_proto_handle_erase(bl_proto_t *proto, const bl_proto_reques
     resp->data[6] = (actual_length >> 16) & 0xFF;
     resp->data[7] = (actual_length >> 8) & 0xFF;
     resp->data[8] = actual_length & 0xFF;
-    resp->data[9] = BL_PROTO_STATUS_SUCCESS;
     resp->data_len = 9;
 
     return LWMB_OK;

@@ -1,4 +1,5 @@
 import time
+import struct
 from typing import Optional
 from tqdm import tqdm
 from modbus_client import BootloaderClient
@@ -60,8 +61,7 @@ class BootloaderFlasher:
             self.client.disconnect()
             return False
 
-        if not self._complete_app_write(major_version, minor_version, build_version,
-                                       app_length, crc32):
+        if not self._complete_app_write():
             self.client.disconnect()
             return False
 
@@ -171,14 +171,10 @@ class BootloaderFlasher:
             return False
         return True
 
-    def _complete_app_write(self, major_version: int, minor_version: int,
-                           build_version: int, app_length: int, crc32: int) -> bool:
+    def _complete_app_write(self) -> bool:
         print("\n完成APP写入...")
-        timestamp = int(time.time())
 
-        if not self.client.complete_app_write(major_version, minor_version,
-                                             build_version, app_length, crc32,
-                                             timestamp):
+        if not self.client.complete_app_write():
             print("完成APP写入失败")
             return False
         return True

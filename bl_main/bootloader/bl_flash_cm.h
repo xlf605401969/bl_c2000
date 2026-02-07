@@ -38,28 +38,15 @@ typedef enum
 } bl_flash_cm_cmd_type_t;
 
 /**
- * @brief CM Flash命令结构体
+ * @brief CM Flash IPC结构体
  */
 typedef struct
 {
     uint32_t cmd;                                 /**< 命令类型 */
     uint32_t addr;                                /**< 操作地址(16位字地址) */
     uint32_t size;                                /**< 操作大小(以16位字为单位) */
-    uint32_t data_offset;                         /**< 数据偏移 */
-    uint16_t data[BL_FLASH_CM_DATA_BUFFER_SIZE];  /**< 数据缓冲区 */
-} bl_flash_cm_cmd_t;
-
-/**
- * @brief CM Flash响应结构体
- */
-typedef struct
-{
-    int32_t result;                               /**< 操作结果 */
-    uint32_t actual_addr;                         /**< 实际操作地址 */
-    uint32_t actual_size;                         /**< 实际操作大小 */
-    uint32_t written_size;                        /**< 已写入大小 */
-    uint16_t data[BL_FLASH_CM_DATA_BUFFER_SIZE];  /**< 数据缓冲区 */
-} bl_flash_cm_resp_t;
+    uint16_t data_start;                          /**< 数据起始位置，实际使用时当作数组存储信息 */
+} bl_flash_cm_ipc_t;
 
 /**
  * @brief 初始化CM Flash驱动
