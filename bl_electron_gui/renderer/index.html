@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+  <title>Bootloader上位机</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- 标题栏 -->
+    <header class="app-header">
+      <h1>🚀 Bootloader 上位机</h1>
+      <p class="subtitle">C2000 MCU 固件烧录工具</p>
+    </header>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+      <!-- 左侧配置面板 -->
+      <aside class="config-panel">
+        <section class="config-section">
+          <h2>串口配置</h2>
+          <div class="form-group">
+            <label for="port">串口:</label>
+            <div class="input-with-button">
+              <select id="port" class="form-control">
+                <option value="">请选择串口</option>
+              </select>
+              <button id="refreshPorts" class="btn btn-secondary" title="刷新串口列表">
+                🔄
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="baudrate">波特率:</label>
+            <select id="baudrate" class="form-control">
+              <option value="9600">9600</option>
+              <option value="19200">19200</option>
+              <option value="38400">38400</option>
+              <option value="57600">57600</option>
+              <option value="115200">115200</option>
+              <option value="250000" selected>250000</option>
+              <option value="500000">500000</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="slaveId">从站ID:</label>
+            <input type="number" id="slaveId" class="form-control" value="1" min="1" max="247">
+          </div>
+        </section>
+
+        <section class="config-section">
+          <h2>目标选择</h2>
+          <div class="form-group">
+            <label>
+              <input type="radio" name="targetType" value="main" checked>
+              主MCU (C2000, 16位内存)
+            </label>
+            <label>
+              <input type="radio" name="targetType" value="cm">
+              CM核 (8位内存)
+            </label>
+          </div>
+        </section>
+
+        <section class="config-section" id="mainMcuSection">
+          <h2>主MCU固件文件</h2>
+          <div class="form-group">
+            <label>低字节HEX:</label>
+            <div class="file-input-group">
+              <input type="text" id="lowHexPath" class="form-control" readonly placeholder="请选择文件...">
+              <button id="selectLowHex" class="btn btn-primary">浏览</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>高字节HEX:</label>
+            <div class="file-input-group">
+              <input type="text" id="highHexPath" class="form-control" readonly placeholder="请选择文件...">
+              <button id="selectHighHex" class="btn btn-primary">浏览</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="config-section" id="cmMcuSection" style="display: none;">
+          <h2>CM核固件文件</h2>
+          <div class="form-group">
+            <label>HEX文件:</label>
+            <div class="file-input-group">
+              <input type="text" id="cmHexPath" class="form-control" readonly placeholder="请选择文件...">
+              <button id="selectCmHex" class="btn btn-primary">浏览</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="config-section appinfo-section" id="appInfoSection">
+          <h2>固件AppInfo</h2>
+          <div class="form-group">
+            <label for="appInfoAddr">AppInfo地址:</label>
+            <input type="text" id="appInfoAddr" class="form-control" value="0x088000">
+          </div>
+          <div class="appinfo-grid">
+            <div class="form-group">
+              <label>Magic:</label>
+              <input type="text" id="appInfoMagic" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>有效标志:</label>
+              <input type="text" id="appInfoValid" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>版本:</label>
+              <input type="text" id="appInfoVersion" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>入口地址:</label>
+              <input type="text" id="appInfoEntry" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>起始地址:</label>
+              <input type="text" id="appInfoStart" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>长度:</label>
+              <input type="text" id="appInfoLength" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>CRC32:</label>
+              <input type="text" id="appInfoCrc32" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>时间戳:</label>
+              <input type="text" id="appInfoTimestamp" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>Git:</label>
+              <input type="text" id="appInfoGit" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>Tag:</label>
+              <input type="text" id="appInfoTag" class="form-control" readonly>
+            </div>
+          </div>
+        </section>
+
+        <section class="config-section">
+          <h2>高级设置</h2>
+          <div class="form-group">
+            <label for="chunkSize">数据块大小 (字节):</label>
+            <input type="number" id="chunkSize" class="form-control" value="64" min="16" max="256" step="16">
+          </div>
+        </section>
+
+        <!-- 操作按钮 -->
+        <div class="action-buttons">
+          <button id="startFlash" class="btn btn-success btn-large">
+            ▶️ 开始烧录
+          </button>
+          <button id="stopFlash" class="btn btn-danger btn-large" style="display: none;">
+            ⏹️ 停止
+          </button>
+        </div>
+
+        <!-- 快捷操作 -->
+        <section class="config-section">
+          <h2>快捷操作</h2>
+          <div class="quick-actions">
+            <button id="enterBootloader" class="btn btn-secondary btn-small">
+              进入Bootloader
+            </button>
+            <button id="jumpToApp" class="btn btn-secondary btn-small">
+              跳转到应用
+            </button>
+            <button id="readSystemInfo" class="btn btn-secondary btn-small">
+              查看系统信息
+            </button>
+          </div>
+        </section>
+      </aside>
+
+      <!-- 右侧日志和进度区 -->
+      <main class="log-panel">
+        <!-- 进度区 -->
+        <section class="progress-section">
+          <div class="status-bar">
+            <span id="statusText" class="status-text">就绪</span>
+            <span id="statusIcon" class="status-icon">⚪</span>
+          </div>
+          
+          <div class="progress-container">
+            <div id="progressBar" class="progress-bar">
+              <div id="progressFill" class="progress-fill"></div>
+              <span id="progressText" class="progress-text">0%</span>
+            </div>
+          </div>
+
+          <div class="progress-info">
+            <span id="progressDetails"></span>
+            <span id="progressTime" style="margin-left: 1rem; color: #666;"></span>
+          </div>
+        </section>
+
+        <!-- 日志区 -->
+        <section class="log-section">
+          <div class="log-header">
+            <h2>日志输出</h2>
+            <button id="clearLog" class="btn btn-secondary btn-small">清空</button>
+          </div>
+          <div id="logContent" class="log-content"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 系统信息模态窗口 -->
+    <div id="systemInfoModal" class="modal">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>📊 系统信息</h2>
+          <button id="closeModal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Bootloader信息 -->
+          <div class="info-section">
+            <h3>🚀 Bootloader信息</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">魔数:</span>
+                <span id="blMagic" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">BL版本:</span>
+                <span id="blVersion" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">状态:</span>
+                <span id="blState" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">能力:</span>
+                <span id="blCapability" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">错误码:</span>
+                <span id="blErrorCode" class="info-value">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Flash信息 -->
+          <div class="info-section">
+            <h3>💾 Flash信息</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">总容量:</span>
+                <span id="flashSize" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">APP起始:</span>
+                <span id="flashAppStart" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">APP最大:</span>
+                <span id="flashAppMax" class="info-value">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- APP信息 -->
+          <div class="info-section">
+            <h3>📋 应用程序信息</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">有效标志:</span>
+                <span id="infoValidFlag" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">APP版本:</span>
+                <span id="infoVersion" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">入口地址:</span>
+                <span id="infoEntryAddr" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">起始地址:</span>
+                <span id="infoStartAddr" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">长度:</span>
+                <span id="infoLength" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">CRC32:</span>
+                <span id="infoCrc32" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">时间戳:</span>
+                <span id="infoTimestamp" class="info-value">-</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Git提交ID:</span>
+                <span id="infoGitCommit" class="info-value">-</span>
+              </div>
+              <div class="info-item full-width">
+                <span class="info-label">Git标签:</span>
+                <span id="infoGitTag" class="info-value">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <footer class="app-footer">
+      <span>© 2026 Bootloader上位机</span>
+      <span id="connectionStatus">未连接</span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
