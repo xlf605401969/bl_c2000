@@ -16,7 +16,10 @@ typedef enum
     BL_FLASH_CM_CMD_READ = 0x04,
     BL_FLASH_CM_CMD_ERASE = 0x66,
     BL_FLASH_CM_CMD_WRITE = 0x67,
-    BL_FLASH_CM_CMD_FLUSH = 0x68
+    BL_FLASH_CM_CMD_FLUSH = 0x68,
+    BL_FLASH_CM_CMD_GET_SIZE = 0x69,
+    BL_FLASH_CM_CMD_ADDR_TO_SECTOR = 0x6A,
+    BL_FLASH_CM_CMD_GET_SECTOR_START_ADDR = 0x6B
 } bl_flash_cm_cmd_type_t;
 
 typedef struct
