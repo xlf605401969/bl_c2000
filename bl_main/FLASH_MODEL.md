@@ -1,6 +1,8 @@
-# Flash驱动模型设计说明 (C2000架构)
+# Flash驱动模型设计说明 (C28x本地Flash)
 
 ## 概述
+本文档描述的是 bl_main 中 C28x 本地Flash驱动模型。CM 侧代理实现采用独立的8bit内部接口，位于 bl_cm_proxy/bootloader/bl_flash_8bit.c 和 bl_cm_proxy/bootloader/bl_flash_8bit.h，二者通过 IPC 边界完成单位转换。
+
 本Flash驱动模型是一个专为C2000系列MCU Bootloader设计的Flash存储器操作框架，具有以下特点：
 
 1. **C2000架构优化**：针对C2000的16位内存宽度进行优化，每个地址对应16位数据
@@ -40,7 +42,7 @@ typedef struct {
 typedef struct {
     uint32_t                base_addr;          // 缓存基地址(16位字地址)
     uint16_t                data[BL_FLASH_CACHE_PAGE_SIZE];  // 缓存数据区
-    uint8_t                 dirty_bitmap[BL_FLASH_CACHE_DIRTY_BITMAP_SIZE]; // 脏位图
+    uint16_t                dirty_bitmap[BL_FLASH_CACHE_DIRTY_BITMAP_SIZE]; // 脏位图
     bl_flash_cache_state_t  state;              // 缓存状态
 } bl_flash_cache_t;
 ```
@@ -107,40 +109,40 @@ static bl_flash_sector_info_t default_sectors[] = {
 
 ### 初始化与反初始化
 ```c
-int bl_flash_init(bl_flash_t *flash);
-int bl_flash_deinit(bl_flash_t *flash);
+int bl_flash_init(void);
+int bl_flash_deinit(void);
 ```
 
 ### 基本操作
 ```c
-int bl_flash_read(bl_flash_t *flash, uint32_t addr, uint16_t *data, uint32_t size);
-int bl_flash_write(bl_flash_t *flash, uint32_t addr, const uint16_t *data, uint32_t size);
+int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size);
+int bl_flash_write(uint32_t addr, const uint16_t *data, uint32_t size);
 ```
 
 ### 擦除操作
 ```c
-int bl_flash_erase_sector(bl_flash_t *flash, uint16_t sector_num);
-int bl_flash_erase_range(bl_flash_t *flash, uint32_t addr, uint32_t size);
+int bl_flash_erase_sector(uint16_t sector_num);
+int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t *actual_addr, uint32_t *actual_size);
 ```
 
 ### 缓存管理
 ```c
-int bl_flash_cache_flush(bl_flash_t *flash);
+int bl_flash_cache_flush(void);
 ```
 
 ### 扇区信息查询
 ```c
-bl_flash_sector_info_t *bl_flash_get_sector_info(bl_flash_t *flash, uint8_t sector_idx);
-uint8_t bl_flash_addr_to_sector(bl_flash_t *flash, uint32_t addr);
+uint8_t bl_flash_addr_to_sector(uint32_t addr);
+uint32_t bl_flash_get_size(void);
+uint32_t bl_flash_get_sector_start_addr(uint8_t sector_num);
 ```
 
 ## 使用方法
 
 ### 1. 初始化Flash驱动
 ```c
-bl_flash_t flash;
-int result = bl_flash_init(&flash);
-if (result != BL_FLASH_SUCCESS) {
+int result = bl_flash_init();
+if (result != BL_SUCCESS) {
     // 处理初始化失败
 }
 ```
@@ -150,20 +152,20 @@ if (result != BL_FLASH_SUCCESS) {
 uint16_t test_data[128]; // 128个16位字 = 256字节
 // ... 填充测试数据
 
-result = bl_flash_write(&flash, 0x082000, test_data, 128);
-if (result != BL_FLASH_SUCCESS) {
+result = bl_flash_write(0x082000, test_data, 128);
+if (result != BL_SUCCESS) {
     // 处理写入失败
 }
 
 // 确保缓存数据写回Flash
-bl_flash_cache_flush(&flash);
+bl_flash_cache_flush();
 ```
 
 ### 3. 从Flash读取数据
 ```c
 uint16_t read_data[64]; // 64个16位字 = 128字节
-result = bl_flash_read(&flash, 0x082100, read_data, 64);
-if (result != BL_FLASH_SUCCESS) {
+result = bl_flash_read(0x082100, read_data, 64);
+if (result != BL_SUCCESS) {
     // 处理读取失败
 }
 ```
@@ -171,26 +173,18 @@ if (result != BL_FLASH_SUCCESS) {
 ### 4. 擦除扇区
 ```c
 // 使用物理扇区号擦除
-result = bl_flash_erase_sector(&flash, 1); // 擦除FLASH1扇区
-if (result != BL_FLASH_SUCCESS) {
+result = bl_flash_erase_sector(1); // 擦除FLASH1扇区
+if (result != BL_SUCCESS) {
     // 处理擦除失败
 }
 
 // 或者使用地址范围擦除
-result = bl_flash_erase_range(&flash, 0x082000, 0x2000);
+result = bl_flash_erase_range(0x082000, 0x2000, NULL, NULL);
 ```
 
-### 5. 验证数据
+### 5. 去初始化
 ```c
-result = bl_flash_verify(&flash, 0x082000, test_data, 128);
-if (result != BL_FLASH_SUCCESS) {
-    // 处理验证失败
-}
-```
-
-### 6. 去初始化
-```c
-bl_flash_deinit(&flash);
+bl_flash_deinit();
 ```
 
 ## 缓存机制
@@ -248,7 +242,7 @@ typedef enum {
 ### 地址和长度单位
 - **所有地址**：16位字地址，不是字节地址
 - **所有size参数**：以16位字为单位
-- **示例**：写入256字节的数据，size参数应传入256
+- **示例**：写入256字节的数据，size参数应传入128
 
 ### 扇区操作约束
 - FLASH0扇区不允许操作
@@ -281,4 +275,6 @@ typedef enum {
 
 ## 示例代码
 
-完整的示例代码请参考`bl_main/bootloader/bl_flash.c`和`bl_main/bootloader/bl_flash.h`文件。
+本地C28x Flash实现请参考`bl_main/bootloader/bl_flash.c`和`bl_main/bootloader/bl_flash.h`文件。
+
+CM侧8bit代理实现请参考`bl_cm_proxy/bootloader/bl_flash_8bit.c`和`bl_cm_proxy/bootloader/bl_flash_8bit.h`文件。

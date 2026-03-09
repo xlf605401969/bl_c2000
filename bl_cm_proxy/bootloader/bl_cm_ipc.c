@@ -42,35 +42,36 @@ void bl_flash_cm_ipc_process_cmd(void)
 
     uint32_t cmd = bl_flash_cm_cmd_buffer->cmd;
     uint32_t addr = bl_flash_cm_cmd_buffer->addr;
-    uint32_t size = bl_flash_cm_cmd_buffer->size;
-    uint16_t *cmd_data_ptr = (uint16_t *)&bl_flash_cm_cmd_buffer->data_start;
-    uint16_t *resp_data_ptr = (uint16_t *)&bl_flash_cm_resp_buffer->data_start;
+    uint32_t size_16 = bl_flash_cm_cmd_buffer->size;  /* IPC协议: size以16位字为单位 */
+    uint32_t size_bytes = size_16 * 2;                 /* 转换为CM本地字节单位 */
+    uint8_t *cmd_data_ptr = (uint8_t *)&bl_flash_cm_cmd_buffer->data_start;
+    uint8_t *resp_data_ptr = (uint8_t *)&bl_flash_cm_resp_buffer->data_start;
 
     switch (cmd) {
         case BL_FLASH_CM_CMD_READ: {
             // 直接读到响应缓冲区，避免额外拷贝
-            int32_t result = bl_flash_read(addr, resp_data_ptr, size);
+            int32_t result = bl_flash_read(addr, resp_data_ptr, size_bytes);
             bl_flash_cm_resp_buffer->cmd = (result == 0) ? BL_FLASH_CM_CMD_READ : 0xFFFFFFFF;
             bl_flash_cm_resp_buffer->addr = addr;
-            bl_flash_cm_resp_buffer->size = size;
+            bl_flash_cm_resp_buffer->size = size_16;  /* 返回给CPU1仍用16位字单位 */
             break;
         }
 
         case BL_FLASH_CM_CMD_ERASE: {
             uint32_t actual_addr = 0;
-            uint32_t actual_size = 0;
-            int32_t result = bl_flash_erase_range(addr, size, &actual_addr, &actual_size);
+            uint32_t actual_size_bytes = 0;
+            int32_t result = bl_flash_erase_range(addr, size_bytes, &actual_addr, &actual_size_bytes);
             bl_flash_cm_resp_buffer->cmd = (result == 0) ? BL_FLASH_CM_CMD_ERASE : 0xFFFFFFFF;
             bl_flash_cm_resp_buffer->addr = actual_addr;
-            bl_flash_cm_resp_buffer->size = actual_size;
+            bl_flash_cm_resp_buffer->size = actual_size_bytes / 2;  /* 转回16位字单位 */
             break;
         }
 
         case BL_FLASH_CM_CMD_WRITE: {
-            int32_t result = bl_flash_write(addr, cmd_data_ptr, size);
+            int32_t result = bl_flash_write(addr, cmd_data_ptr, size_bytes);
             bl_flash_cm_resp_buffer->cmd = (result == 0) ? BL_FLASH_CM_CMD_WRITE : 0xFFFFFFFF;
             bl_flash_cm_resp_buffer->addr = addr;
-            bl_flash_cm_resp_buffer->size = size;
+            bl_flash_cm_resp_buffer->size = size_16;  /* 返回给CPU1仍用16位字单位 */
             break;
         }
 
@@ -83,10 +84,10 @@ void bl_flash_cm_ipc_process_cmd(void)
         }
 
         case BL_FLASH_CM_CMD_GET_SIZE: {
-            uint32_t total_size = bl_flash_get_size();
+            uint32_t total_size_bytes = bl_flash_get_size();
             bl_flash_cm_resp_buffer->cmd = BL_FLASH_CM_CMD_GET_SIZE;
             bl_flash_cm_resp_buffer->addr = 0;
-            bl_flash_cm_resp_buffer->size = total_size;
+            bl_flash_cm_resp_buffer->size = total_size_bytes / 2;  /* 转回16位字单位 */
             break;
         }
 

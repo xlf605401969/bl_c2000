@@ -12,7 +12,7 @@
 
 ## 安装依赖
 
-在bl_upper目录下运行：
+在bl_upper_control目录下运行：
 
 ```bash
 pip install -r requirements.txt

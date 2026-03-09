@@ -40,7 +40,7 @@ extern "C"
 #define BL_FLASH_CACHE_BLOCK_COUNT (BL_FLASH_CACHE_PAGE_SIZE / BL_FLASH_CACHE_BLOCK_SIZE)
 
 /**
- * @brief 脏位图大小(以字节为单位)
+ * @brief 脏位图数组长度(以uint16_t元素个数为单位)
  *
  * 用于标记哪些块被修改过，需要写回Flash
  */

@@ -1,8 +1,9 @@
 /**
- * @file bl_flash.c
+ * @file bl_flash_8bit.c
  * @brief Flash驱动层实现
  *
- * 注意：在CM中，每地址对应8bit，但为保证接口的一致性，仍然使用uint16传递数据。
+ * CM核心为8位寻址，本驱动层所有接口均使用字节为单位，匹配CM本地内存模型。
+ * 与C28x(16位寻址)的数据交换在IPC层完成转换。
  */
 
 #include <string.h>
@@ -14,7 +15,7 @@
  * @brief CM Flash扇区配置表
  *
  * CM Flash的扇区信息：
- * 注意：size字段以8位字为单位
+ * 注意：size字段以字节为单位
  */
 static bl_flash_sector_info_t cm_sectors[] = {
     {0x00200000,0x00004000,0},
@@ -179,9 +180,6 @@ int bl_flash_erase_sector(uint16_t sector_num)
     return bl_flash_erase_range(info->start_address, info->size, &actual_addr, &actual_size);
 }
 
-/**
- * @note 此函数的size参数以16位字为单位。
- */
 int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size)
 {
     if (!g_bl_flash.initialized) {
@@ -196,14 +194,14 @@ int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t* actual_addr, ui
         *actual_size = 0;
     }
 
-    // 计算结束地址(16位字地址)
+    // 计算结束地址(字节地址)
     uint32_t end_addr = addr + size;
     
     // 遍历所有扇区，擦除覆盖的扇区
     for (int i = 0; i < g_bl_flash.sector_count; i++) {
         bl_flash_sector_info_t *sector_info = &g_bl_flash.sectors[i];
         uint32_t sector_start = sector_info->start_address;
-        uint32_t sector_end = sector_start + sector_info->size; // size是16位字数量
+        uint32_t sector_end = sector_start + sector_info->size;
         
         // 检查当前扇区是否与擦除范围有交集
         if (!((sector_start < addr && sector_end <= addr) || (sector_start >= end_addr && sector_end > end_addr))) {
@@ -235,14 +233,13 @@ int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t* actual_addr, ui
     return BL_SUCCESS;
 }
 
-int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size)
+int bl_flash_read(uint32_t addr, uint8_t *data, uint32_t size)
 {
     if (!g_bl_flash.initialized || data == NULL) {
         return BL_INVALID_PARAM;
     }
 
-    uint32_t count = size * sizeof(uint16_t);
-    memcpy(data, (void *)addr, count);
+    memcpy(data, (void *)addr, size);
 
     return BL_SUCCESS;
 }
@@ -267,14 +264,11 @@ int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size)
  * 
  * 5. 更新地址和剩余计数，处理跨页情况
  */
-int bl_flash_write(uint32_t addr, const uint16_t *data, uint32_t size)
+int bl_flash_write(uint32_t addr, const uint8_t *data, uint32_t size)
 {
     if (!g_bl_flash.initialized || data == NULL) {
         return BL_INVALID_PARAM;
     }
-
-    /* 由于CM内存宽度为8bit，size应乘2, 自动适配CPU1与CM */
-    size *= sizeof(uint16_t);
 
     uint32_t write_offset = 0;
     uint32_t remaining = size;

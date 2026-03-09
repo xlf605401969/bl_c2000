@@ -4,6 +4,8 @@
  *
  * 通过IPC与CM核心通信，实现对CM Flash的远程操作。
  * 所有地址和长度参数均以16位字为基本单位。
+ * CM侧内部实际使用8bit字节寻址，但该差异由IPC边界负责转换，
+ * 因此本文件对外仍保持与CPU1本地Flash一致的16位字接口语义。
  */
 
 #ifndef BL_FLASH_CM_H
@@ -39,6 +41,9 @@ typedef enum
 
 /**
  * @brief CM Flash IPC结构体
+ *
+ * 该结构体定义的是CPU1与CM之间共享的IPC协议格式，
+ * 字段中的addr和size统一使用16位字语义。
  */
 typedef struct
 {

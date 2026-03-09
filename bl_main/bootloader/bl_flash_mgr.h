@@ -4,6 +4,13 @@
  *
  * 提供统一的Flash操作接口，支持本地Flash和CM Flash的切换。
  * 使用操作函数表实现不同Flash设备的抽象。
+ *
+ * 注意：管理器层对外统一采用CPU1侧接口语义：
+ * - addr参数以16位字地址为单位
+ * - size参数以16位字数量为单位
+ * - read/write的数据缓冲区类型为uint16_t *
+ *
+ * 对于CM Flash，管理器层以下的IPC会负责完成与CM本地8bit寻址模型之间的转换。
  */
 
 #ifndef BL_FLASH_MGR_H
@@ -33,13 +40,13 @@ typedef enum
  */
 typedef struct
 {
-    int (*erase)(uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size);  /**< 擦除函数 */
-    int (*write)(uint32_t addr, const uint16_t* data, uint32_t size);                          /**< 写入函数 */
-    int (*read)(uint32_t addr, uint16_t *data, uint32_t size);                                 /**< 读取函数 */
+    int (*erase)(uint32_t addr, uint32_t size, uint32_t* actual_addr, uint32_t* actual_size);  /**< 擦除函数，addr/size/actual_*均以16位字为单位 */
+    int (*write)(uint32_t addr, const uint16_t* data, uint32_t size);                          /**< 写入函数，addr和size以16位字为单位，data按uint16_t数组解释 */
+    int (*read)(uint32_t addr, uint16_t *data, uint32_t size);                                 /**< 读取函数，addr和size以16位字为单位，data按uint16_t数组输出 */
     int (*flush)(void);                                                                         /**< 刷新缓存函数 */
-    uint32_t (*get_size)(void);                                                                /**< 获取大小函数 */
-    uint8_t (*addr_to_sector)(uint32_t addr);                                                  /**< 地址转扇区号函数 */
-    uint32_t (*get_sector_start_addr)(uint8_t sector_num);                                     /**< 获取扇区起始地址函数 */
+    uint32_t (*get_size)(void);                                                                /**< 获取大小函数，返回值以16位字为单位 */
+    uint8_t (*addr_to_sector)(uint32_t addr);                                                  /**< 地址转扇区号函数，addr以16位字地址为单位 */
+    uint32_t (*get_sector_start_addr)(uint8_t sector_num);                                     /**< 获取扇区起始地址函数，返回16位字地址 */
 } bl_flash_ops_t;
 
 /**

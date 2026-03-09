@@ -1,10 +1,10 @@
 /**
- * @file bl_flash.h
+ * @file bl_flash_8bit.h
  * @brief Flash驱动层接口定义
  *
- * 注意：在C2000架构中，Flash存储器是16位宽度的，每个地址对应一个16位(2字节)数据单元。
- * 本驱动中所有地址和长度参数均以16位单元为基本单位，而非字节。
- * 例如：写入128个字(256字节)的数据，size参数应传入128而非256。
+ * 注意：CM核心为8位寻址，每个地址对应一个字节(8bit)。
+ * 本驱动中所有地址和长度参数均以字节为基本单位，匹配CM本地内存模型。
+ * 与C28x（16位寻址）的数据交换在IPC层完成转换。
  */
 
 #ifndef BL_FLASH_H
@@ -60,12 +60,12 @@ typedef enum
 /**
  * @brief 扇区信息结构体
  *
- * 记录每个扇区的起始地址和大小(以16位字为单位)
+ * 记录每个扇区的起始地址和大小(以字节为单位)
  */
 typedef struct
 {
-    uint32_t start_address; /**< 扇区起始地址(16位字地址) */
-    uint32_t size;          /**< 扇区大小(以16位字为单位) */
+    uint32_t start_address; /**< 扇区起始地址(字节地址) */
+    uint32_t size;          /**< 扇区大小(以字节为单位) */
     uint8_t sector_num;     /**< 扇区编号 */
 } bl_flash_sector_info_t;
 
@@ -80,7 +80,7 @@ typedef struct
  */
 typedef struct
 {
-    uint32_t base_addr;                                      /**< 缓存基地址(16位字地址) */
+    uint32_t base_addr;                                      /**< 缓存基地址(字节地址) */
     uint8_t data[BL_FLASH_CACHE_PAGE_SIZE];           /**< 缓存数据区(以8位字节为单位) */
     uint16_t dirty_bitmap[BL_FLASH_CACHE_DIRTY_BITMAP_SIZE]; /**< 脏位图 */
     bl_flash_cache_state_t state;                            /**< 缓存状态 */
@@ -94,7 +94,7 @@ typedef struct
     bl_flash_sector_info_t *sectors; /**< 扇区信息数组 */
     int32_t sector_count;            /**< 扇区数量 */
     bl_flash_cache_t cache;          /**< 写缓存 */
-    uint32_t size;                   /**< 总大小(以16位字为单位) */
+    uint32_t size;                   /**< 总大小(以字节为单位) */
     bool initialized;                /**< 初始化标志 */
 } bl_flash_t;
 
@@ -119,10 +119,10 @@ int bl_flash_erase_sector(uint16_t sector_num);
 
 /**
  * @brief 擦除指定地址范围
- * @param addr 起始地址(16位字地址)
- * @param size 擦除大小(以16位字为单位)
- * @param actual_addr 实际擦除起始地址(16位字地址)
- * @param actual_size 实际擦除大小(以16位字为单位)
+ * @param addr 起始地址(字节地址)
+ * @param size 擦除大小(以字节为单位)
+ * @param actual_addr 实际擦除起始地址(字节地址)
+ * @param actual_size 实际擦除大小(以字节为单位)
  * @return 操作结果
  */
 int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t *actual_addr, uint32_t *actual_size);
@@ -132,12 +132,12 @@ int bl_flash_erase_range(uint32_t addr, uint32_t size, uint32_t *actual_addr, ui
  *
  * 读取操作直接访问Flash，不经过缓存。
  *
- * @param addr 读取起始地址(16位字地址)
+ * @param addr 读取起始地址(字节地址)
  * @param data 读取数据缓冲区指针
- * @param size 读取数据大小(以16位字为单位)
+ * @param size 读取数据大小(以字节为单位)
  * @return 操作结果
  */
-int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size);
+int bl_flash_read(uint32_t addr, uint8_t *data, uint32_t size);
 
 /**
  * @brief 向Flash写入数据
@@ -149,12 +149,12 @@ int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size);
  * 4. 标记受影响的块为脏
  * 5. 处理跨页写入
  *
- * @param addr 写入起始地址(16位字地址)
+ * @param addr 写入起始地址(字节地址)
  * @param data 写入数据缓冲区指针
- * @param size 写入数据大小(以16位字为单位)
+ * @param size 写入数据大小(以字节为单位)
  * @return 操作结果
  */
-int bl_flash_write(uint32_t addr, const uint16_t *data, uint32_t size);
+int bl_flash_write(uint32_t addr, const uint8_t *data, uint32_t size);
 
 /**
  * @brief 将缓存中所有脏块写回Flash
@@ -167,21 +167,21 @@ int bl_flash_cache_flush(void);
 
 /**
  * @brief 根据地址查找所在扇区
- * @param addr 16位字地址
+ * @param addr 字节地址
  * @return 物理扇区号(1-13)，未找到返回0xFF
  */
 uint8_t bl_flash_addr_to_sector(uint32_t addr);
 
 /**
  * @brief 获取Flash总大小
- * @return Flash总大小(以16位字为单位)
+ * @return Flash总大小(以字节为单位)
  */
 uint32_t bl_flash_get_size(void);
 
 /**
  * @brief 获取扇区起始地址
  * @param sector_num 物理扇区号(1-13)
- * @return 扇区起始地址(16位字地址)，失败返回0xFFFFFFFF
+ * @return 扇区起始地址(字节地址)，失败返回0xFFFFFFFF
  */
 uint32_t bl_flash_get_sector_start_addr(uint8_t sector_num);
 

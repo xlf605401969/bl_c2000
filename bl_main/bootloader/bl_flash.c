@@ -2,8 +2,8 @@
  * @file bl_flash.c
  * @brief Flash驱动层实现
  *
- * 注意：在C2000架构中，Flash存储器是16位宽度的，每个地址对应一个16位数据单元。
- * 本驱动中所有长度参数均以字节为单位，地址参数以16位字地址为单位。
+ * 注意：在C2000架构中，Flash存储器是16位宽度的，每个地址对应一个16位(2字节)数据单元。
+ * 本驱动中所有地址和长度参数均以16位单元为基本单位，而非字节。
  */
 
 #include <string.h>
@@ -261,8 +261,7 @@ int bl_flash_read(uint32_t addr, uint16_t *data, uint32_t size)
         return BL_INVALID_PARAM;
     }
 
-    uint32_t word_count = (size + 1) / 2;
-    memcpy(data, (void *)addr, word_count * sizeof(uint16_t));
+    memcpy(data, (void *)addr, size);
 
     return BL_SUCCESS;
 }
@@ -292,9 +291,6 @@ int bl_flash_write(uint32_t addr, const uint16_t *data, uint32_t size)
     if (!g_bl_flash.initialized || data == NULL) {
         return BL_INVALID_PARAM;
     }
-
-    /* 由于CM内存宽度为8bit，size应乘2, 自动适配CPU1与CM */
-    size *= sizeof(uint16_t);
 
     uint32_t write_offset = 0;
     uint32_t remaining = size;
@@ -357,9 +353,9 @@ static int bl_flash_cache_init(void)
  * 写回流程：
  * 1. 遍历所有块，检查脏位图
  * 2. 对于每个脏块：
- *    a. 计算块在缓存中的字节偏移：block_offset = block_idx * BL_FLASH_CACHE_BLOCK_SIZE
+ *    a. 计算块在缓存中的16位字偏移：block_offset = block_idx * BL_FLASH_CACHE_BLOCK_SIZE
  *    b. 计算块的Flash字地址：write_addr = base_addr + block_offset
- *    c. 调用Fapi_issueProgrammingCommand写入块数据（使用字节缓冲区）
+ *    c. 调用Fapi_issueProgrammingCommand写入块数据（使用uint16_t缓冲区）
  *    d. 等待Flash FSM就绪
  *    e. 清除该块的脏标记
  * 3. 完成后清除所有脏标记并重置缓存状态
