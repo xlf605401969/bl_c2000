@@ -389,6 +389,7 @@ async function enterBootloader() {
     
     if (result.success) {
       log('成功进入Bootloader模式', 'success');
+      elements.connectionStatus.textContent = '已进入Bootloader';
     } else {
       log(`进入Bootloader模式失败: ${result.error}`, 'error');
     }

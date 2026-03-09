@@ -50,6 +50,11 @@
             <label for="slaveId">从站ID:</label>
             <input type="number" id="slaveId" class="form-control" value="1" min="1" max="247">
           </div>
+          <div class="form-group">
+            <button id="enterBootloader" class="btn btn-secondary btn-small">
+              进入Bootloader
+            </button>
+          </div>
         </section>
 
         <section class="config-section">
@@ -168,14 +173,11 @@
         <section class="config-section">
           <h2>快捷操作</h2>
           <div class="quick-actions">
-            <button id="enterBootloader" class="btn btn-secondary btn-small">
-              进入Bootloader
-            </button>
             <button id="jumpToApp" class="btn btn-secondary btn-small">
               跳转到应用
             </button>
             <button id="readSystemInfo" class="btn btn-secondary btn-small">
-              查看系统信息
+              查看MCU信息
             </button>
           </div>
         </section>
