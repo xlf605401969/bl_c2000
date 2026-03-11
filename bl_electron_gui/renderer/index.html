@@ -123,6 +123,9 @@
             <button id="openAppInfo" class="btn btn-secondary btn-small">
               查看固件AppInfo
             </button>
+            <button id="openHex2Builder" class="btn btn-secondary btn-small">
+              HEX2创建工具
+            </button>
             <button id="openEraseModal" class="btn btn-secondary btn-small">
               擦除芯片...
             </button>
@@ -469,6 +472,38 @@
 
           <div class="modal-actions">
             <button id="confirmErase" class="btn btn-danger">执行擦除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="hex2BuilderModal" class="modal">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>🧩 HEX2创建工具</h2>
+          <button id="closeHex2BuilderModal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="inline-hint hex2-builder-hint">
+            从分离 HEX 文件生成一个 HEX2 组合文件。勾选要打包的目标后，为每个目标补齐所需文件。
+          </div>
+
+          <div id="hex2BuilderTargetsContainer" class="hex2-builder-targets"></div>
+
+          <div class="form-group">
+            <label>输出 HEX2 文件:</label>
+            <div class="file-input-group">
+              <input type="text" id="hex2BuilderOutputPath" class="form-control" readonly placeholder="请选择输出文件...">
+              <button id="selectHex2BuilderOutput" class="btn btn-primary">浏览</button>
+            </div>
+          </div>
+
+          <div id="hex2BuilderStatus" class="inline-hint hex2-builder-status">
+            生成后会自动切换到新建的 HEX2 文件。
+          </div>
+
+          <div class="modal-actions">
+            <button id="createHex2Bundle" class="btn btn-primary">生成 HEX2</button>
           </div>
         </div>
       </div>

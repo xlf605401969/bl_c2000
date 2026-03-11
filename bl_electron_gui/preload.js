@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 文件选择
   selectFile: (options) => ipcRenderer.invoke('select-file', options),
+  selectSaveFile: (options) => ipcRenderer.invoke('select-save-file', options),
+  createHex2File: (config) => ipcRenderer.invoke('create-hex2-file', config),
   
   // 烧录操作
   startFlash: (config) => ipcRenderer.invoke('start-flash', config),

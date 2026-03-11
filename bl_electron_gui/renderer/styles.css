@@ -380,6 +380,46 @@ body {
   margin-top: 0.5rem;
 }
 
+.hex2-builder-targets {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.hex2-builder-target {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  background: #fbfcfe;
+}
+
+.hex2-builder-target h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.hex2-builder-target-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.hex2-builder-target-meta {
+  color: var(--secondary-color);
+  font-size: 0.85rem;
+}
+
+.hex2-builder-target .target-check-item {
+  margin-bottom: 0;
+}
+
+.hex2-builder-status,
+.hex2-builder-hint {
+  margin-top: 0.5rem;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -482,6 +522,11 @@ body {
   .erase-target-grid,
   .erase-target-switch {
     grid-template-columns: 1fr;
+  }
+
+  .hex2-builder-target-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .modal-actions {

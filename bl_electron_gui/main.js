@@ -1,9 +1,11 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { SerialPort } = require('serialport');
 const Flasher = require('./src/flasher');
 const { loadFirmwareDocument } = require('./src/firmware-document');
 const { loadGuiConfig } = require('./src/gui-config');
+const { createHex2File } = require('./src/hex2-builder');
 
 let mainWindow;
 let flasher = null;
@@ -175,6 +177,65 @@ ipcMain.handle('select-file', async (event, options) => {
     return {
       success: true,
       filePath: result.filePaths[0]
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('select-save-file', async (event, options) => {
+  try {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      filters: [
+        { name: 'HEX2组合文件', extensions: ['hex2', 'HEX2'] },
+        { name: '所有文件', extensions: ['*'] }
+      ],
+      ...options
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, canceled: true };
+    }
+
+    return {
+      success: true,
+      filePath: result.filePath
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('create-hex2-file', async (event, config) => {
+  try {
+    const { outputPath, targets } = config || {};
+    if (!outputPath) {
+      return { success: false, error: '输出文件路径不能为空' };
+    }
+
+    const guiConfig = loadGuiConfig();
+    const result = createHex2File({
+      outputPath,
+      targetDefinitions: guiConfig.targets,
+      selectedTargets: Array.isArray(targets) ? targets : []
+    });
+
+    if (fs.existsSync(outputPath)) {
+      firmwareDocumentCache.delete(getFirmwareCacheKey({
+        firmwareFormat: 'hex2',
+        hex2File: outputPath
+      }));
+    }
+
+    return {
+      success: true,
+      ...result
     };
   } catch (error) {
     return {

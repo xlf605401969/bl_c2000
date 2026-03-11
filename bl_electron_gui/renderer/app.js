@@ -44,6 +44,18 @@ function parseMemoryLength(value) {
   return parseInt(text, 10);
 }
 
+function isTargetCompleteForHex2Builder(target, files) {
+  if (!target || !files) {
+    return false;
+  }
+
+  if (target.bitWidth === 16) {
+    return Boolean(files.low && files.high);
+  }
+
+  return Boolean(files.single);
+}
+
 // DOM元素
 const elements = {
   // 串口配置
@@ -76,6 +88,7 @@ const elements = {
 
   // 固件AppInfo
   openAppInfoBtn: document.getElementById('openAppInfo'),
+  openHex2BuilderBtn: document.getElementById('openHex2Builder'),
   openEraseModalBtn: document.getElementById('openEraseModal'),
   appInfoAddrInput: document.getElementById('appInfoAddr'),
   refreshAppInfoBtn: document.getElementById('refreshAppInfo'),
@@ -106,6 +119,13 @@ const elements = {
   closeSystemInfoModalBtn: document.getElementById('closeSystemInfoModal'),
   appInfoModal: document.getElementById('appInfoModal'),
   closeAppInfoModalBtn: document.getElementById('closeAppInfoModal'),
+  hex2BuilderModal: document.getElementById('hex2BuilderModal'),
+  closeHex2BuilderModalBtn: document.getElementById('closeHex2BuilderModal'),
+  hex2BuilderTargetsContainer: document.getElementById('hex2BuilderTargetsContainer'),
+  hex2BuilderOutputPath: document.getElementById('hex2BuilderOutputPath'),
+  selectHex2BuilderOutputBtn: document.getElementById('selectHex2BuilderOutput'),
+  createHex2BundleBtn: document.getElementById('createHex2Bundle'),
+  hex2BuilderStatus: document.getElementById('hex2BuilderStatus'),
   eraseModal: document.getElementById('eraseModal'),
   closeEraseModalBtn: document.getElementById('closeEraseModal'),
   eraseTargetSwitch: document.getElementById('eraseTargetSwitch'),
@@ -241,6 +261,7 @@ function renderConfiguredTargetUI() {
   renderLegacyTargetInputs();
   renderFlashTargetOptions();
   renderEraseTargetButtons();
+  renderHex2BuilderInputs();
   refreshDynamicElementRefs();
 
   const appInfoTarget = getAppInfoTargetConfig();
@@ -256,6 +277,62 @@ function refreshDynamicElementRefs() {
   elements.legacyTargetBlocks = Array.from(document.querySelectorAll('.legacy-target-block'));
   elements.legacyFileButtons = Array.from(document.querySelectorAll('.select-legacy-file'));
   elements.eraseTargetButtons = Array.from(document.querySelectorAll('.erase-target-btn'));
+}
+
+function renderHex2BuilderInputs() {
+  elements.hex2BuilderTargetsContainer.innerHTML = getGuiTargets().map((target) => {
+    const files = appState.config.legacyFiles[target.id] || {};
+    const enabled = isTargetCompleteForHex2Builder(target, files);
+
+    if (target.bitWidth === 16) {
+      return `
+        <section class="hex2-builder-target">
+          <div class="hex2-builder-target-header">
+            <label class="target-check-item">
+              <input type="checkbox" id="hex2-builder-${target.id}-enabled" ${enabled ? 'checked' : ''}>
+              包含 ${target.displayName}
+            </label>
+            <div class="hex2-builder-target-meta">target=${target.firmwareTarget} | ${target.bitWidth}位 | 需要 low/high</div>
+          </div>
+          <h3>${target.label}</h3>
+          <div class="form-group">
+            <label>低字节HEX:</label>
+            <div class="file-input-group">
+              <input type="text" id="hex2-builder-${target.id}-low-path" class="form-control" readonly placeholder="请选择文件..." value="${files.low || ''}">
+              <button class="btn btn-primary select-hex2-builder-source" data-target-id="${target.id}" data-file-role="low">浏览</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>高字节HEX:</label>
+            <div class="file-input-group">
+              <input type="text" id="hex2-builder-${target.id}-high-path" class="form-control" readonly placeholder="请选择文件..." value="${files.high || ''}">
+              <button class="btn btn-primary select-hex2-builder-source" data-target-id="${target.id}" data-file-role="high">浏览</button>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    return `
+      <section class="hex2-builder-target">
+        <div class="hex2-builder-target-header">
+          <label class="target-check-item">
+            <input type="checkbox" id="hex2-builder-${target.id}-enabled" ${enabled ? 'checked' : ''}>
+            包含 ${target.displayName}
+          </label>
+          <div class="hex2-builder-target-meta">target=${target.firmwareTarget} | ${target.bitWidth}位 | 单文件</div>
+        </div>
+        <h3>${target.label}</h3>
+        <div class="form-group">
+          <label>HEX文件:</label>
+          <div class="file-input-group">
+            <input type="text" id="hex2-builder-${target.id}-single-path" class="form-control" readonly placeholder="请选择文件..." value="${files.single || ''}">
+            <button class="btn btn-primary select-hex2-builder-source" data-target-id="${target.id}" data-file-role="single">浏览</button>
+          </div>
+        </div>
+      </section>
+    `;
+  }).join('');
 }
 
 function renderTargetTypeOptions() {
@@ -388,6 +465,7 @@ function setupEventListeners() {
   });
   elements.selectHex2Btn.addEventListener('click', () => selectFile('hex2'));
   elements.openAppInfoBtn.addEventListener('click', openAppInfoModal);
+  elements.openHex2BuilderBtn.addEventListener('click', openHex2BuilderModal);
   elements.openEraseModalBtn.addEventListener('click', openEraseModal);
   elements.appInfoAddrInput.addEventListener('change', () => parseFirmwareAppInfo({ silent: false }));
   elements.refreshAppInfoBtn.addEventListener('click', () => parseFirmwareAppInfo({ silent: false }));
@@ -434,6 +512,21 @@ function setupEventListeners() {
       closeAppInfoModal();
     }
   });
+  elements.closeHex2BuilderModalBtn.addEventListener('click', closeHex2BuilderModal);
+  elements.hex2BuilderModal.addEventListener('click', (e) => {
+    if (e.target === elements.hex2BuilderModal) {
+      closeHex2BuilderModal();
+    }
+  });
+  elements.hex2BuilderTargetsContainer.addEventListener('click', (event) => {
+    const button = event.target.closest('.select-hex2-builder-source');
+    if (!button) {
+      return;
+    }
+    void selectHex2BuilderSourceFile(button.dataset.targetId, button.dataset.fileRole);
+  });
+  elements.selectHex2BuilderOutputBtn.addEventListener('click', selectHex2BuilderOutputPath);
+  elements.createHex2BundleBtn.addEventListener('click', createHex2Bundle);
   elements.closeEraseModalBtn.addEventListener('click', closeEraseModal);
   elements.eraseModal.addEventListener('click', (e) => {
     if (e.target === elements.eraseModal) {
@@ -681,6 +774,7 @@ async function selectLegacyFile(targetId, fileRole) {
       if (input) {
         input.value = result.filePath;
       }
+      setHex2BuilderSourceInputValue(targetId, fileRole, result.filePath);
 
       const target = getTargetConfig(targetId);
       const roleText = fileRole === 'single' ? 'HEX文件' : `${fileRole === 'low' ? '低字节' : '高字节'}HEX文件`;
@@ -690,6 +784,179 @@ async function selectLegacyFile(targetId, fileRole) {
     }
   } catch (error) {
     log(`选择文件错误: ${error.message}`, 'error');
+  }
+}
+
+function getHex2BuilderPathInput(targetId, role) {
+  return document.getElementById(`hex2-builder-${targetId}-${role}-path`);
+}
+
+function getHex2BuilderEnabledInput(targetId) {
+  return document.getElementById(`hex2-builder-${targetId}-enabled`);
+}
+
+function setHex2BuilderSourceInputValue(targetId, fileRole, value) {
+  const input = getHex2BuilderPathInput(targetId, fileRole);
+  if (input) {
+    input.value = value || '';
+  }
+
+  const target = getTargetConfig(targetId);
+  const enabledInput = getHex2BuilderEnabledInput(targetId);
+  if (enabledInput && isTargetCompleteForHex2Builder(target, appState.config.legacyFiles[targetId] || {})) {
+    enabledInput.checked = true;
+  }
+}
+
+function setHex2BuilderStatus(message) {
+  elements.hex2BuilderStatus.textContent = message;
+}
+
+async function selectHex2BuilderSourceFile(targetId, fileRole) {
+  try {
+    const result = await window.electronAPI.selectFile({
+      title: '选择固件文件'
+    });
+
+    if (!result.success || result.canceled) {
+      return;
+    }
+
+    if (!appState.config.legacyFiles[targetId]) {
+      appState.config.legacyFiles[targetId] = {};
+    }
+    appState.config.legacyFiles[targetId][fileRole] = result.filePath;
+
+    const legacyInput = getLegacyPathInput(targetId, fileRole);
+    if (legacyInput) {
+      legacyInput.value = result.filePath;
+    }
+    setHex2BuilderSourceInputValue(targetId, fileRole, result.filePath);
+
+    const target = getTargetConfig(targetId);
+    const roleText = fileRole === 'single' ? 'HEX文件' : `${fileRole === 'low' ? '低字节' : '高字节'}HEX文件`;
+    setHex2BuilderStatus(`已更新 ${target ? target.displayName : targetId} 的${roleText}`);
+  } catch (error) {
+    setHex2BuilderStatus(error.message);
+    log(`选择 HEX2 创建源文件错误: ${error.message}`, 'error');
+  }
+}
+
+async function selectHex2BuilderOutputPath() {
+  try {
+    const result = await window.electronAPI.selectSaveFile({
+      title: '保存 HEX2 组合文件',
+      defaultPath: elements.hex2BuilderOutputPath.value || undefined
+    });
+
+    if (!result.success || result.canceled) {
+      return;
+    }
+
+    elements.hex2BuilderOutputPath.value = result.filePath;
+    setHex2BuilderStatus('已选择输出文件，点击“生成 HEX2”开始创建。');
+  } catch (error) {
+    setHex2BuilderStatus(error.message);
+    log(`选择 HEX2 输出路径错误: ${error.message}`, 'error');
+  }
+}
+
+function collectHex2BuilderTargets() {
+  const selectedTargets = [];
+
+  getGuiTargets().forEach((target) => {
+    const enabledInput = getHex2BuilderEnabledInput(target.id);
+    if (!enabledInput || !enabledInput.checked) {
+      return;
+    }
+
+    const files = appState.config.legacyFiles[target.id] || {};
+    if (target.bitWidth === 16) {
+      if (!files.low || !files.high) {
+        throw new Error(`${target.displayName} 缺少 low/high 文件`);
+      }
+
+      selectedTargets.push({
+        id: target.id,
+        files: {
+          low: files.low,
+          high: files.high
+        }
+      });
+      return;
+    }
+
+    if (!files.single) {
+      throw new Error(`${target.displayName} 缺少 HEX 文件`);
+    }
+
+    selectedTargets.push({
+      id: target.id,
+      files: {
+        single: files.single
+      }
+    });
+  });
+
+  if (!selectedTargets.length) {
+    throw new Error('请至少勾选一个目标并提供完整源文件');
+  }
+
+  return selectedTargets;
+}
+
+async function openHex2BuilderModal() {
+  if (appState.isFlashing) {
+    log('烧录过程中不能创建 HEX2 文件', 'warning');
+    return;
+  }
+
+  renderHex2BuilderInputs();
+  setHex2BuilderStatus('生成后会自动切换到新建的 HEX2 文件。');
+  elements.hex2BuilderModal.classList.add('show');
+}
+
+function closeHex2BuilderModal() {
+  elements.hex2BuilderModal.classList.remove('show');
+}
+
+async function createHex2Bundle() {
+  try {
+    const outputPath = elements.hex2BuilderOutputPath.value.trim();
+    if (!outputPath) {
+      throw new Error('请先选择输出文件路径');
+    }
+
+    const targets = collectHex2BuilderTargets();
+    elements.createHex2BundleBtn.disabled = true;
+    setHex2BuilderStatus('正在生成 HEX2 文件...');
+
+    const result = await window.electronAPI.createHex2File({
+      outputPath,
+      targets
+    });
+
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
+    appState.config.hex2File = outputPath;
+    appState.config.firmwareFormat = 'hex2';
+    elements.hex2Path.value = outputPath;
+    elements.firmwareFormatRadios.forEach((radio) => {
+      radio.checked = radio.value === 'hex2';
+    });
+
+    setHex2BuilderStatus(`HEX2 创建成功，包含 ${result.segments.join('；')}`);
+    log(`HEX2 创建成功: ${outputPath}`, 'success');
+    closeHex2BuilderModal();
+    await refreshLoadedFirmware();
+    await refreshFirmwareAppInfoIfVisible();
+  } catch (error) {
+    setHex2BuilderStatus(error.message);
+    log(`HEX2 创建失败: ${error.message}`, 'error');
+  } finally {
+    elements.createHex2BundleBtn.disabled = false;
   }
 }
 
@@ -1445,6 +1712,7 @@ function updateUIForFlashing(isFlashing) {
     elements.firmwareFormatRadios.forEach(radio => radio.disabled = true);
     elements.legacyFileButtons.forEach((button) => button.disabled = true);
     elements.selectHex2Btn.disabled = true;
+    elements.openHex2BuilderBtn.disabled = true;
     elements.enterBootloaderBtn.disabled = true;
     elements.jumpToAppBtn.disabled = true;
     elements.refreshMemoryBrowserBtn.disabled = true;
@@ -1459,6 +1727,7 @@ function updateUIForFlashing(isFlashing) {
     elements.firmwareFormatRadios.forEach(radio => radio.disabled = false);
     elements.legacyFileButtons.forEach((button) => button.disabled = false);
     elements.selectHex2Btn.disabled = false;
+    elements.openHex2BuilderBtn.disabled = false;
     elements.enterBootloaderBtn.disabled = false;
     elements.jumpToAppBtn.disabled = false;
     elements.refreshMemoryBrowserBtn.disabled = false;
