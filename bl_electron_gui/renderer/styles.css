@@ -104,6 +104,15 @@ body {
   margin-right: 0.5rem;
 }
 
+.inline-hint {
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  background: #fff3cd;
+  color: #856404;
+  font-size: 0.85rem;
+  border: 1px solid #ffeeba;
+}
+
 .form-control {
   width: 100%;
   padding: 0.5rem;
@@ -481,6 +490,122 @@ body {
   min-height: 1.2rem;
 }
 
+.memory-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(to bottom, #fffdf8, #f7f9fc);
+}
+
+.memory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.memory-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.memory-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.memory-summary {
+  font-size: 0.85rem;
+  color: var(--secondary-color);
+  min-height: 1.2rem;
+  line-height: 1.5;
+}
+
+.memory-table-wrapper {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.memory-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 0.82rem;
+  table-layout: fixed;
+}
+
+.memory-table th,
+.memory-table td {
+  padding: 0.45rem 0.35rem;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.memory-table th {
+  position: sticky;
+  top: 0;
+  background: #eef3fb;
+  color: var(--dark-color);
+  text-align: center;
+  z-index: 1;
+}
+
+.memory-table th:first-child {
+  width: 110px;
+  text-align: left;
+}
+
+.memory-table td:first-child {
+  white-space: nowrap;
+  color: var(--primary-color);
+  font-weight: 600;
+  width: 110px;
+  text-align: left;
+}
+
+.memory-table th:last-child,
+.memory-table td:last-child {
+  width: 150px;
+  text-align: left;
+  padding-left: 0.75rem;
+}
+
+.memory-byte-cell {
+  text-align: center;
+  color: #1d3557;
+}
+
+.memory-byte-cell.byte-ff {
+  color: #9aa5b1;
+}
+
+.memory-byte-cell.byte-zero {
+  color: #457b9d;
+}
+
+.memory-byte-cell.byte-printable {
+  font-weight: 600;
+}
+
+.memory-byte-cell.byte-group-split {
+  border-right: 2px solid #cbd5e1;
+}
+
+.memory-ascii-cell {
+  letter-spacing: 0.08em;
+  color: #2f3e46;
+}
+
+.memory-empty {
+  text-align: center;
+  color: var(--secondary-color);
+}
+
 /* 日志区 */
 .log-section {
   flex: 1;
@@ -602,5 +727,13 @@ body {
     max-height: 40vh;
     border-right: none;
     border-bottom: 1px solid var(--border-color);
+  }
+
+  .memory-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-table {
+    font-size: 0.75rem;
   }
 }

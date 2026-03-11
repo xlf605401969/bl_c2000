@@ -58,6 +58,20 @@
         </section>
 
         <section class="config-section">
+          <h2>固件来源</h2>
+          <div class="form-group">
+            <label>
+              <input type="radio" name="firmwareFormat" value="legacy" checked>
+              传统HEX
+            </label>
+            <label>
+              <input type="radio" name="firmwareFormat" value="hex2">
+              HEX2组合文件
+            </label>
+          </div>
+        </section>
+
+        <section class="config-section">
           <h2>目标选择</h2>
           <div class="form-group">
             <label>
@@ -68,6 +82,13 @@
               <input type="radio" name="targetType" value="cm">
               CM核 (8位内存)
             </label>
+            <label>
+              <input type="radio" name="targetType" value="cpu2">
+              CPU2 (16位内存)
+            </label>
+          </div>
+          <div id="legacyTargetHint" class="inline-hint" style="display: none;">
+            传统HEX模式当前仅支持主MCU和CM，CPU2请使用HEX2文件。
           </div>
         </section>
 
@@ -97,6 +118,17 @@
             <div class="file-input-group">
               <input type="text" id="cmHexPath" class="form-control" readonly placeholder="请选择文件...">
               <button id="selectCmHex" class="btn btn-primary">浏览</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="config-section" id="hex2Section" style="display: none;">
+          <h2>HEX2固件文件</h2>
+          <div class="form-group">
+            <label>HEX2文件:</label>
+            <div class="file-input-group">
+              <input type="text" id="hex2Path" class="form-control" readonly placeholder="请选择HEX2文件...">
+              <button id="selectHex2" class="btn btn-primary">浏览</button>
             </div>
           </div>
         </section>
@@ -202,6 +234,69 @@
           <div class="progress-info">
             <span id="progressDetails"></span>
             <span id="progressTime" style="margin-left: 1rem; color: #666;"></span>
+          </div>
+        </section>
+
+        <section class="memory-section">
+          <div class="memory-header">
+            <h2>内存浏览器</h2>
+            <button id="refreshMemoryBrowser" class="btn btn-secondary btn-small">刷新视图</button>
+          </div>
+
+          <div class="memory-controls">
+            <div class="form-group">
+              <label for="memoryTarget">目标:</label>
+              <select id="memoryTarget" class="form-control">
+                <option value="">暂无已加载目标</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="memoryStartAddr">起始地址:</label>
+              <input type="text" id="memoryStartAddr" class="form-control" placeholder="0x00000000">
+            </div>
+            <div class="form-group">
+              <label for="memoryLength">长度(字节):</label>
+              <select id="memoryLength" class="form-control">
+                <option value="64">64</option>
+                <option value="128" selected>128</option>
+                <option value="256">256</option>
+                <option value="512">512</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="memorySummary" class="memory-summary">未加载固件</div>
+
+          <div class="memory-table-wrapper">
+            <table class="memory-table">
+              <thead>
+                <tr>
+                  <th>地址</th>
+                  <th>00</th>
+                  <th>01</th>
+                  <th>02</th>
+                  <th>03</th>
+                  <th>04</th>
+                  <th>05</th>
+                  <th>06</th>
+                  <th>07</th>
+                  <th>08</th>
+                  <th>09</th>
+                  <th>0A</th>
+                  <th>0B</th>
+                  <th>0C</th>
+                  <th>0D</th>
+                  <th>0E</th>
+                  <th>0F</th>
+                  <th>ASCII</th>
+                </tr>
+              </thead>
+              <tbody id="memoryTableBody">
+                <tr>
+                  <td colspan="18" class="memory-empty">请选择固件文件以查看解析后的内存内容</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </section>
 

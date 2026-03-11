@@ -2,10 +2,11 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { SerialPort } = require('serialport');
 const Flasher = require('./src/flasher');
-const HexParser = require('./src/hex-parser');
+const { loadFirmwareDocument } = require('./src/firmware-document');
 
 let mainWindow;
 let flasher = null;
+const firmwareDocumentCache = new Map();
 
 function parseAddressString(value) {
   if (value === undefined || value === null) {
@@ -26,6 +27,54 @@ function parseAddressString(value) {
   }
 
   return parseInt(text, 10);
+}
+
+function resolveTargetKey(targetType) {
+  if (targetType === 'main') {
+    return 'cpu1';
+  }
+  if (targetType === 'cm') {
+    return 'cm';
+  }
+  if (targetType === 'cpu2') {
+    return 'cpu2';
+  }
+  return null;
+}
+
+function resolveTargetCode(targetType) {
+  if (targetType === 'main') {
+    return 0x00;
+  }
+  if (targetType === 'cm') {
+    return 0x01;
+  }
+  if (targetType === 'cpu2') {
+    return 0x02;
+  }
+  throw new Error(`未知目标类型: ${targetType}`);
+}
+
+function getFirmwareCacheKey(config) {
+  return JSON.stringify({
+    firmwareFormat: config.firmwareFormat || 'legacy',
+    targetType: config.targetType || 'main',
+    lowHexFile: config.lowHexFile || '',
+    highHexFile: config.highHexFile || '',
+    cmHexFile: config.cmHexFile || '',
+    hex2File: config.hex2File || ''
+  });
+}
+
+async function getFirmwareDocument(config) {
+  const cacheKey = getFirmwareCacheKey(config);
+  if (firmwareDocumentCache.has(cacheKey)) {
+    return firmwareDocumentCache.get(cacheKey);
+  }
+
+  const document = await loadFirmwareDocument(config);
+  firmwareDocumentCache.set(cacheKey, document);
+  return document;
 }
 
 function createWindow() {
@@ -92,7 +141,7 @@ ipcMain.handle('select-file', async (event, options) => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
       filters: [
-        { name: 'HEX文件', extensions: ['hex', 'HEX'] },
+        { name: '固件文件', extensions: ['hex', 'HEX', 'hex2', 'HEX2'] },
         { name: '所有文件', extensions: ['*'] }
       ],
       ...options
@@ -124,6 +173,8 @@ ipcMain.handle('start-flash', async (event, config) => {
       lowHexFile,
       highHexFile,
       cmHexFile,
+      hex2File,
+      firmwareFormat,
       targetType,
       majorVersion,
       minorVersion,
@@ -148,29 +199,30 @@ ipcMain.handle('start-flash', async (event, config) => {
       mainWindow.webContents.send('flash-status', data);
     });
 
-    let result;
-    if (targetType === 'main' && lowHexFile && highHexFile) {
-      // 主MCU更新（16位内存）
-      result = await flasher.flashMainMcu(
-        lowHexFile,
-        highHexFile,
-        chunkSize,
-        majorVersion,
-        minorVersion,
-        buildVersion
-      );
-    } else if (targetType === 'cm' && cmHexFile) {
-      // CM核更新（8位内存）
-      result = await flasher.flashCmMcu(
-        cmHexFile,
-        chunkSize,
-        majorVersion,
-        minorVersion,
-        buildVersion
-      );
-    } else {
-      throw new Error('无效的配置参数');
+    const firmwareDocument = await getFirmwareDocument({
+      firmwareFormat,
+      targetType,
+      lowHexFile,
+      highHexFile,
+      cmHexFile,
+      hex2File
+    });
+
+    const targetKey = resolveTargetKey(targetType);
+    const image = firmwareDocument.getTarget(targetKey);
+    if (!image) {
+      throw new Error(`当前固件中未找到目标 ${targetKey}`);
     }
+
+    const result = await flasher.flashParsedImage(
+      image,
+      resolveTargetCode(targetType),
+      targetKey,
+      chunkSize,
+      majorVersion,
+      minorVersion,
+      buildVersion
+    );
 
     return result;
   } catch (error) {
@@ -290,41 +342,18 @@ ipcMain.handle('read-system-info', async (event, config) => {
 // 从固件文件解析AppInfo
 ipcMain.handle('parse-app-info', async (event, config) => {
   try {
-    const {
-      targetType,
-      lowHexFile,
-      highHexFile,
-      cmHexFile,
-      appInfoAddr
-    } = config;
-
     const address = parseAddressString(appInfoAddr);
     if (address === null || Number.isNaN(address)) {
       return { success: false, error: 'AppInfo地址无效' };
     }
 
-    const parser = new HexParser();
-    let parseResult;
-
-    if (targetType === 'main') {
-      if (!lowHexFile || !highHexFile) {
-        return { success: false, error: '缺少低字节或高字节HEX文件' };
-      }
-      parseResult = await parser.parseFiles(lowHexFile, highHexFile);
-    } else if (targetType === 'cm') {
-      if (!cmHexFile) {
-        return { success: false, error: '缺少CM核HEX文件' };
-      }
-      parseResult = await parser.parseSingleFile(cmHexFile);
-    } else {
-      return { success: false, error: '未知目标类型' };
+    const firmwareDocument = await getFirmwareDocument(config);
+    const image = firmwareDocument.getTarget(resolveTargetKey(config.targetType));
+    if (!image) {
+      return { success: false, error: '当前固件中未找到对应目标' };
     }
 
-    if (!parseResult.success) {
-      return { success: false, error: parseResult.error };
-    }
-
-    const appInfoResult = parser.parseAppInfo(address);
+    const appInfoResult = image.parseAppInfo(address);
     if (!appInfoResult.success) {
       return { success: false, error: appInfoResult.error };
     }
@@ -333,6 +362,48 @@ ipcMain.handle('parse-app-info', async (event, config) => {
       success: true,
       appInfo: appInfoResult.appInfo,
       address
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('load-firmware-document', async (event, config) => {
+  try {
+    const firmwareDocument = await getFirmwareDocument(config);
+    return {
+      success: true,
+      format: firmwareDocument.format,
+      targets: firmwareDocument.listTargets()
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('browse-firmware-memory', async (event, config) => {
+  try {
+    const firmwareDocument = await getFirmwareDocument(config);
+    const image = firmwareDocument.getTarget(config.browseTarget);
+    if (!image) {
+      return { success: false, error: `未找到目标 ${config.browseTarget}` };
+    }
+
+    const startAddress = parseAddressString(config.startAddress);
+    const length = parseInt(config.length, 10);
+    const address = startAddress === null || Number.isNaN(startAddress) ? image.minAddr : startAddress;
+    const browseLength = Number.isNaN(length) || length <= 0 ? 128 : length;
+
+    return {
+      success: true,
+      target: image.getSummary(),
+      memory: image.getMemoryRows(address, browseLength)
     };
   } catch (error) {
     return {

@@ -14,6 +14,26 @@ class Flasher extends EventEmitter {
     this.shouldStop = false;
   }
 
+  async flashParsedImage(image, targetCode, targetLabel, chunkSize = 64, majorVer = 1, minorVer = 0, buildVer = 0) {
+    this.parser = image;
+
+    this.log(`开始烧录${targetLabel}`);
+    this.setStatus('parsing', '解析固件数据...');
+
+    const summary = image.getSummary();
+    this.log('固件数据已加载');
+    this.log(`  目标: ${summary.target}`);
+    this.log(`  数据块数: ${summary.blockCount}`);
+    this.log(`  地址范围: 0x${summary.minAddr.toString(16)} - 0x${summary.maxAddr.toString(16)}`);
+    this.log(`  总字节数: ${summary.totalBytes}`);
+    if (summary.is16bitMode) {
+      this.log(`  总字数: ${summary.totalWords}`);
+    }
+    this.log(`  CRC32: 0x${summary.crc32.toString(16).padStart(8, '0')}`);
+
+    return this._flashCommon(targetCode, chunkSize, majorVer, minorVer, buildVer);
+  }
+
   /**
    * 发送日志
    */

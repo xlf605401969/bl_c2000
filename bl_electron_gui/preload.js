@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readAppInfo: (config) => ipcRenderer.invoke('read-app-info', config),
   readSystemInfo: (config) => ipcRenderer.invoke('read-system-info', config),
   parseFirmwareAppInfo: (config) => ipcRenderer.invoke('parse-app-info', config),
+  loadFirmwareDocument: (config) => ipcRenderer.invoke('load-firmware-document', config),
+  browseFirmwareMemory: (config) => ipcRenderer.invoke('browse-firmware-memory', config),
   
   // 事件监听
   onFlashProgress: (callback) => {

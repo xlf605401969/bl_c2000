@@ -142,6 +142,8 @@ npm run build
 
 详细协议规范请参考：`../bl_main/PROTOCOL.md`
 
+多镜像组合文件格式说明请参考：`./HEX2_FORMAT.md`
+
 ## 项目结构
 
 ```

@@ -1,0 +1,31 @@
+@HEX2 version=1
+
+@SEGMENT name=cpu1-low target=cpu1 addr-unit=word16 combine=pair-low purpose=firmware
+:020000040008F2
+:100000000102030405060708090A0B0C0D0E0F1068
+:00000001FF
+
+@SEGMENT name=cpu1-high target=cpu1 addr-unit=word16 combine=pair-high purpose=firmware
+:020000040008F2
+:100000001112131415161718191A1B1C1D1E1F2068
+:00000001FF
+
+@SEGMENT name=cm-image target=cm addr-unit=byte8 combine=none purpose=firmware
+:020000040020DA
+:10000000AABBCCDDEEFF00112233445566778899F8
+:00000001FF
+
+@SEGMENT name=cpu2-low target=cpu2 addr-unit=word16 combine=pair-low purpose=firmware
+:020000040030CA
+:100000002122232425262728292A2B2C2D2E2F3068
+:00000001FF
+
+@SEGMENT name=cpu2-high target=cpu2 addr-unit=word16 combine=pair-high purpose=firmware
+:020000040030CA
+:100000003132333435363738393A3B3C3D3E3F4068
+:00000001FF
+
+@SEGMENT name=config-zone target=config addr-unit=byte8 combine=none purpose=config
+:020000040040BA
+:1000000055AA55AA55AA55AA55AA55AA55AA55AAF8
+:00000001FF

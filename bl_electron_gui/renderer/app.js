@@ -3,7 +3,10 @@ const appState = {
   isFlashing: false,
   selectedPorts: [],
   startTime: null,
+  firmwareDocument: null,
+  availableTargets: [],
   config: {
+    firmwareFormat: 'legacy',
     port: '',
     baudrate: 250000,
     slaveId: 1,
@@ -11,6 +14,8 @@ const appState = {
     lowHexFile: '',
     highHexFile: '',
     cmHexFile: '',
+    hex2File: '',
+    browseTarget: '',
     chunkSize: 64
   }
 };
@@ -23,18 +28,25 @@ const elements = {
   baudrateSelect: document.getElementById('baudrate'),
   slaveIdInput: document.getElementById('slaveId'),
 
+  // 固件来源
+  firmwareFormatRadios: document.querySelectorAll('input[name="firmwareFormat"]'),
+
   // 目标选择
   targetTypeRadios: document.querySelectorAll('input[name="targetType"]'),
   mainMcuSection: document.getElementById('mainMcuSection'),
   cmMcuSection: document.getElementById('cmMcuSection'),
+  hex2Section: document.getElementById('hex2Section'),
+  legacyTargetHint: document.getElementById('legacyTargetHint'),
 
   // 文件选择
   lowHexPath: document.getElementById('lowHexPath'),
   highHexPath: document.getElementById('highHexPath'),
   cmHexPath: document.getElementById('cmHexPath'),
+  hex2Path: document.getElementById('hex2Path'),
   selectLowHexBtn: document.getElementById('selectLowHex'),
   selectHighHexBtn: document.getElementById('selectHighHex'),
   selectCmHexBtn: document.getElementById('selectCmHex'),
+  selectHex2Btn: document.getElementById('selectHex2'),
 
   // 固件AppInfo
   appInfoAddrInput: document.getElementById('appInfoAddr'),
@@ -98,6 +110,14 @@ const elements = {
   logContent: document.getElementById('logContent'),
   clearLogBtn: document.getElementById('clearLog'),
 
+  // 内存浏览器
+  memoryTarget: document.getElementById('memoryTarget'),
+  memoryStartAddr: document.getElementById('memoryStartAddr'),
+  memoryLength: document.getElementById('memoryLength'),
+  memorySummary: document.getElementById('memorySummary'),
+  memoryTableBody: document.getElementById('memoryTableBody'),
+  refreshMemoryBrowserBtn: document.getElementById('refreshMemoryBrowser'),
+
   // 状态栏
   connectionStatus: document.getElementById('connectionStatus')
 };
@@ -107,6 +127,8 @@ async function init() {
   await refreshSerialPorts();
   setupEventListeners();
   setupIPCListeners();
+  updateTargetSections();
+  clearMemoryBrowser();
   log('应用程序已启动', 'info');
 }
 
@@ -115,11 +137,30 @@ function setupEventListeners() {
   // 串口刷新
   elements.refreshPortsBtn.addEventListener('click', refreshSerialPorts);
 
+  // 固件来源切换
+  elements.firmwareFormatRadios.forEach(radio => {
+    radio.addEventListener('change', async () => {
+      appState.config.firmwareFormat = radio.value;
+      if (appState.config.firmwareFormat === 'legacy' && appState.config.targetType === 'cpu2') {
+        appState.config.targetType = 'main';
+        const mainRadio = Array.from(elements.targetTypeRadios).find(item => item.value === 'main');
+        if (mainRadio) {
+          mainRadio.checked = true;
+        }
+      }
+      updateTargetSections();
+      await refreshLoadedFirmware();
+      await parseFirmwareAppInfo();
+    });
+  });
+
   // 目标类型切换
   elements.targetTypeRadios.forEach(radio => {
-    radio.addEventListener('change', () => {
+    radio.addEventListener('change', async () => {
       appState.config.targetType = radio.value;
       updateTargetSections();
+      await refreshLoadedFirmware();
+      await parseFirmwareAppInfo();
     });
   });
 
@@ -127,7 +168,25 @@ function setupEventListeners() {
   elements.selectLowHexBtn.addEventListener('click', () => selectFile('lowHex'));
   elements.selectHighHexBtn.addEventListener('click', () => selectFile('highHex'));
   elements.selectCmHexBtn.addEventListener('click', () => selectFile('cmHex'));
+  elements.selectHex2Btn.addEventListener('click', () => selectFile('hex2'));
   elements.appInfoAddrInput.addEventListener('change', parseFirmwareAppInfo);
+  elements.refreshMemoryBrowserBtn.addEventListener('click', refreshMemoryBrowser);
+  elements.memoryTarget.addEventListener('change', async () => {
+    appState.config.browseTarget = elements.memoryTarget.value;
+    const selectedTarget = getSelectedTargetSummary();
+    if (selectedTarget) {
+      elements.memoryStartAddr.value = formatHex(selectedTarget.minAddr, 8);
+    }
+    syncBrowseTargetToTargetType();
+    if (['cpu1', 'cm', 'cpu2'].includes(appState.config.browseTarget)) {
+      await parseFirmwareAppInfo();
+    } else {
+      clearFirmwareAppInfo();
+    }
+    await refreshMemoryBrowser();
+  });
+  elements.memoryStartAddr.addEventListener('change', refreshMemoryBrowser);
+  elements.memoryLength.addEventListener('change', refreshMemoryBrowser);
 
   // 操作按钮
   elements.startFlashBtn.addEventListener('click', startFlash);
@@ -208,22 +267,66 @@ async function refreshSerialPorts() {
 
 // 更新目标选择区域显示
 function updateTargetSections() {
-  if (appState.config.targetType === 'main') {
-    elements.mainMcuSection.style.display = 'block';
-    elements.cmMcuSection.style.display = 'none';
-  } else {
-    elements.mainMcuSection.style.display = 'none';
-    elements.cmMcuSection.style.display = 'block';
+  const isLegacy = appState.config.firmwareFormat === 'legacy';
+  const isMain = appState.config.targetType === 'main';
+  const isCm = appState.config.targetType === 'cm';
+
+  elements.hex2Section.style.display = isLegacy ? 'none' : 'block';
+  elements.mainMcuSection.style.display = isLegacy && isMain ? 'block' : 'none';
+  elements.cmMcuSection.style.display = isLegacy && isCm ? 'block' : 'none';
+  elements.legacyTargetHint.style.display = isLegacy && appState.config.targetType === 'cpu2' ? 'block' : 'none';
+
+  const cpu2Radio = Array.from(elements.targetTypeRadios).find(radio => radio.value === 'cpu2');
+  if (cpu2Radio) {
+    cpu2Radio.disabled = isLegacy;
+  }
+}
+
+function normalizeTargetTypeToBrowseTarget(targetType) {
+  if (targetType === 'main') {
+    return 'cpu1';
+  }
+  if (targetType === 'cm') {
+    return 'cm';
+  }
+  if (targetType === 'cpu2') {
+    return 'cpu2';
+  }
+  return '';
+}
+
+function normalizeBrowseTargetToTargetType(target) {
+  if (target === 'cpu1') {
+    return 'main';
+  }
+  if (target === 'cm') {
+    return 'cm';
+  }
+  if (target === 'cpu2') {
+    return 'cpu2';
+  }
+  return appState.config.targetType;
+}
+
+function syncBrowseTargetToTargetType() {
+  if (!appState.config.browseTarget) {
+    return;
   }
 
-  parseFirmwareAppInfo();
+  const mapped = normalizeBrowseTargetToTargetType(appState.config.browseTarget);
+  appState.config.targetType = mapped;
+  const radio = Array.from(elements.targetTypeRadios).find(item => item.value === mapped);
+  if (radio) {
+    radio.checked = true;
+  }
+  updateTargetSections();
 }
 
 // 选择文件
 async function selectFile(type) {
   try {
     const result = await window.electronAPI.selectFile({
-      title: '选择HEX文件'
+      title: '选择固件文件'
     });
 
     if (result.success && !result.canceled) {
@@ -244,13 +347,190 @@ async function selectFile(type) {
           appState.config.cmHexFile = result.filePath;
           elements.cmHexPath.value = result.filePath;
           log(`已选择CM核HEX文件: ${result.filePath}`, 'info');
-          parseFirmwareAppInfo();
+          break;
+        case 'hex2':
+          appState.config.hex2File = result.filePath;
+          elements.hex2Path.value = result.filePath;
+          log(`已选择HEX2文件: ${result.filePath}`, 'info');
           break;
       }
+
+      await refreshLoadedFirmware();
+      await parseFirmwareAppInfo();
     }
   } catch (error) {
     log(`选择文件错误: ${error.message}`, 'error');
   }
+}
+
+function clearMemoryBrowser(message = '请选择固件文件以查看解析后的内存内容') {
+  elements.memorySummary.textContent = '未加载固件';
+  elements.memoryTableBody.innerHTML = `<tr><td colspan="18" class="memory-empty">${message}</td></tr>`;
+}
+
+function getSelectedTargetSummary() {
+  return appState.availableTargets.find((item) => item.target === appState.config.browseTarget) || null;
+}
+
+function renderByteCells(bytes) {
+  return bytes.map((value, index) => {
+    const classes = ['memory-byte-cell'];
+
+    if (value === 0xFF) {
+      classes.push('byte-ff');
+    } else if (value === 0x00) {
+      classes.push('byte-zero');
+    }
+
+    if (value >= 32 && value <= 126) {
+      classes.push('byte-printable');
+    }
+
+    if (index === 7) {
+      classes.push('byte-group-split');
+    }
+
+    return `<td class="${classes.join(' ')}">${value.toString(16).toUpperCase().padStart(2, '0')}</td>`;
+  }).join('');
+}
+
+function renderMemoryBrowser(memoryResult, targetSummary) {
+  const segmentText = targetSummary.segmentNames && targetSummary.segmentNames.length
+    ? ` | 段 ${targetSummary.segmentNames.join(', ')}`
+    : '';
+  const missingText = memoryResult.missing > 0
+    ? ` | 视图内缺失填充 ${memoryResult.missing} 字节`
+    : '';
+
+  elements.memorySummary.textContent = `${targetSummary.target} | ${targetSummary.addrUnit} | 块数 ${targetSummary.blockCount} | 起始 ${formatHex(targetSummary.minAddr, 8)} | 长度 ${targetSummary.totalBytes} 字节${segmentText}${missingText}`;
+  elements.memoryTableBody.innerHTML = '';
+
+  if (!memoryResult.rows.length) {
+    clearMemoryBrowser('当前范围内无可显示数据');
+    return;
+  }
+
+  for (const row of memoryResult.rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${formatHex(row.address, 8)}</td>
+      ${renderByteCells(row.bytes)}
+      <td class="memory-ascii-cell">${row.ascii}</td>
+    `;
+    elements.memoryTableBody.appendChild(tr);
+  }
+}
+
+async function refreshLoadedFirmware() {
+  try {
+    if (!hasFirmwareSelection()) {
+      appState.firmwareDocument = null;
+      appState.availableTargets = [];
+      elements.memoryTarget.innerHTML = '<option value="">暂无已加载目标</option>';
+      clearMemoryBrowser();
+      clearFirmwareAppInfo();
+      return;
+    }
+
+    const result = await window.electronAPI.loadFirmwareDocument(collectConfig());
+    if (!result.success) {
+      appState.firmwareDocument = null;
+      appState.availableTargets = [];
+      elements.memoryTarget.innerHTML = '<option value="">暂无已加载目标</option>';
+      clearMemoryBrowser(result.error);
+      log(`固件解析失败: ${result.error}`, 'warning');
+      return;
+    }
+
+    appState.firmwareDocument = result;
+    appState.availableTargets = result.targets || [];
+    populateMemoryTargets();
+    await refreshMemoryBrowser();
+  } catch (error) {
+    appState.firmwareDocument = null;
+    appState.availableTargets = [];
+    clearMemoryBrowser(error.message);
+    log(`固件加载错误: ${error.message}`, 'error');
+  }
+}
+
+function populateMemoryTargets() {
+  elements.memoryTarget.innerHTML = '';
+
+  if (!appState.availableTargets.length) {
+    elements.memoryTarget.innerHTML = '<option value="">暂无已加载目标</option>';
+    appState.config.browseTarget = '';
+    return;
+  }
+
+  const preferredTarget = normalizeTargetTypeToBrowseTarget(appState.config.targetType);
+  const availableTargetNames = appState.availableTargets.map((item) => item.target);
+
+  if (!appState.config.browseTarget || !availableTargetNames.includes(appState.config.browseTarget)) {
+    appState.config.browseTarget = availableTargetNames.includes(preferredTarget)
+      ? preferredTarget
+      : appState.availableTargets[0].target;
+  }
+
+  const selectedTarget = appState.availableTargets.find((target) => target.target === appState.config.browseTarget);
+  if (selectedTarget && !elements.memoryStartAddr.value.trim()) {
+    elements.memoryStartAddr.value = formatHex(selectedTarget.minAddr, 8);
+  }
+
+  appState.availableTargets.forEach((target) => {
+    const option = document.createElement('option');
+    option.value = target.target;
+    option.textContent = `${target.target} (${target.addrUnit})`;
+    option.selected = target.target === appState.config.browseTarget;
+    elements.memoryTarget.appendChild(option);
+  });
+
+  syncBrowseTargetToTargetType();
+}
+
+async function refreshMemoryBrowser() {
+  if (!appState.firmwareDocument || !appState.config.browseTarget) {
+    clearMemoryBrowser();
+    return;
+  }
+
+  try {
+    const result = await window.electronAPI.browseFirmwareMemory({
+      ...collectConfig(),
+      browseTarget: appState.config.browseTarget,
+      startAddress: elements.memoryStartAddr.value.trim(),
+      length: elements.memoryLength.value
+    });
+
+    if (!result.success) {
+      clearMemoryBrowser(result.error);
+      return;
+    }
+
+    if (!elements.memoryStartAddr.value.trim()) {
+      elements.memoryStartAddr.value = formatHex(result.memory.startAddress, 8);
+    }
+
+    renderMemoryBrowser(result.memory, result.target);
+  } catch (error) {
+    clearMemoryBrowser(error.message);
+  }
+}
+
+function hasFirmwareSelection() {
+  if (appState.config.firmwareFormat === 'hex2') {
+    return Boolean(appState.config.hex2File);
+  }
+
+  if (appState.config.targetType === 'main') {
+    return Boolean(appState.config.lowHexFile && appState.config.highHexFile);
+  }
+
+  if (appState.config.targetType === 'cm') {
+    return Boolean(appState.config.cmHexFile);
+  }
+
+  return false;
 }
 
 function formatHex(value, width) {
@@ -295,24 +575,24 @@ async function parseFirmwareAppInfo() {
     return;
   }
 
-  if (appState.config.targetType === 'main') {
-    if (!appState.config.lowHexFile || !appState.config.highHexFile) {
-      clearFirmwareAppInfo();
-      return;
-    }
-  } else if (appState.config.targetType === 'cm') {
-    if (!appState.config.cmHexFile) {
-      clearFirmwareAppInfo();
-      return;
-    }
+  if (!['main', 'cm', 'cpu2'].includes(appState.config.targetType)) {
+    clearFirmwareAppInfo();
+    return;
+  }
+
+  if (!hasFirmwareSelection()) {
+    clearFirmwareAppInfo();
+    return;
   }
 
   try {
     const result = await window.electronAPI.parseFirmwareAppInfo({
+      firmwareFormat: appState.config.firmwareFormat,
       targetType: appState.config.targetType,
       lowHexFile: appState.config.lowHexFile,
       highHexFile: appState.config.highHexFile,
       cmHexFile: appState.config.cmHexFile,
+      hex2File: appState.config.hex2File,
       appInfoAddr: addrText
     });
 
@@ -428,6 +708,7 @@ async function jumpToApp() {
 // 收集配置
 function collectConfig() {
   return {
+    firmwareFormat: appState.config.firmwareFormat,
     port: elements.portSelect.value,
     baudrate: parseInt(elements.baudrateSelect.value),
     slaveId: parseInt(elements.slaveIdInput.value),
@@ -435,6 +716,7 @@ function collectConfig() {
     lowHexFile: appState.config.lowHexFile,
     highHexFile: appState.config.highHexFile,
     cmHexFile: appState.config.cmHexFile,
+    hex2File: appState.config.hex2File,
     chunkSize: parseInt(elements.chunkSizeInput.value)
   };
 }
@@ -446,7 +728,22 @@ function validateConfig(config) {
     return false;
   }
 
-  if (config.targetType === 'main') {
+  if (config.firmwareFormat === 'hex2') {
+    if (!config.hex2File) {
+      log('请选择HEX2文件', 'error');
+      return false;
+    }
+
+    if (!['main', 'cm', 'cpu2'].includes(config.targetType)) {
+      log('请选择有效的烧录目标', 'error');
+      return false;
+    }
+
+    if (config.targetType === 'cpu2') {
+      log('CPU2烧录目标已识别，但当前版本暂未实现实际烧录流程', 'error');
+      return false;
+    }
+  } else if (config.targetType === 'main') {
     if (!config.lowHexFile || !config.highHexFile) {
       log('请选择低字节和高字节HEX文件', 'error');
       return false;
@@ -472,11 +769,14 @@ function updateUIForFlashing(isFlashing) {
     elements.baudrateSelect.disabled = true;
     elements.slaveIdInput.disabled = true;
     elements.targetTypeRadios.forEach(radio => radio.disabled = true);
+    elements.firmwareFormatRadios.forEach(radio => radio.disabled = true);
     elements.selectLowHexBtn.disabled = true;
     elements.selectHighHexBtn.disabled = true;
     elements.selectCmHexBtn.disabled = true;
+    elements.selectHex2Btn.disabled = true;
     elements.enterBootloaderBtn.disabled = true;
     elements.jumpToAppBtn.disabled = true;
+    elements.refreshMemoryBrowserBtn.disabled = true;
   } else {
     elements.startFlashBtn.style.display = 'block';
     elements.stopFlashBtn.style.display = 'none';
@@ -486,11 +786,15 @@ function updateUIForFlashing(isFlashing) {
     elements.baudrateSelect.disabled = false;
     elements.slaveIdInput.disabled = false;
     elements.targetTypeRadios.forEach(radio => radio.disabled = false);
+    elements.firmwareFormatRadios.forEach(radio => radio.disabled = false);
     elements.selectLowHexBtn.disabled = false;
     elements.selectHighHexBtn.disabled = false;
     elements.selectCmHexBtn.disabled = false;
+    elements.selectHex2Btn.disabled = false;
     elements.enterBootloaderBtn.disabled = false;
     elements.jumpToAppBtn.disabled = false;
+    elements.refreshMemoryBrowserBtn.disabled = false;
+    updateTargetSections();
   }
 }
 
