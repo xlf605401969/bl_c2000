@@ -5,8 +5,9 @@ const appState = {
   startTime: null,
   firmwareDocument: null,
   availableTargets: [],
+  isMemorySectionCollapsed: false,
   config: {
-    firmwareFormat: 'legacy',
+    firmwareFormat: 'hex2',
     port: '',
     baudrate: 250000,
     slaveId: 1,
@@ -20,6 +21,26 @@ const appState = {
     chunkSize: 64
   }
 };
+
+const MAX_MEMORY_BROWSE_LENGTH = 8 * 1024 * 1024;
+const DEFAULT_MEMORY_BROWSE_LENGTH = 128;
+
+function formatMemoryLength(value) {
+  return `0x${value.toString(16).toUpperCase()}`;
+}
+
+function parseMemoryLength(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return Number.NaN;
+  }
+
+  if (text.startsWith('0x') || text.startsWith('0X')) {
+    return parseInt(text, 16);
+  }
+
+  return parseInt(text, 10);
+}
 
 // DOM元素
 const elements = {
@@ -121,6 +142,9 @@ const elements = {
   clearLogBtn: document.getElementById('clearLog'),
 
   // 内存浏览器
+  memorySection: document.getElementById('memorySection'),
+  memorySectionBody: document.getElementById('memorySectionBody'),
+  toggleMemorySectionBtn: document.getElementById('toggleMemorySection'),
   memoryTarget: document.getElementById('memoryTarget'),
   memoryStartAddr: document.getElementById('memoryStartAddr'),
   memoryLength: document.getElementById('memoryLength'),
@@ -138,6 +162,7 @@ async function init() {
   setupEventListeners();
   setupIPCListeners();
   updateTargetSections();
+  updateMemorySectionVisibility();
   clearMemoryBrowser();
   log('应用程序已启动', 'info');
 }
@@ -205,12 +230,14 @@ function setupEventListeners() {
   elements.openAppInfoBtn.addEventListener('click', openAppInfoModal);
   elements.appInfoAddrInput.addEventListener('change', () => parseFirmwareAppInfo({ silent: false }));
   elements.refreshAppInfoBtn.addEventListener('click', () => parseFirmwareAppInfo({ silent: false }));
+  elements.toggleMemorySectionBtn.addEventListener('click', toggleMemorySection);
   elements.refreshMemoryBrowserBtn.addEventListener('click', refreshMemoryBrowser);
   elements.memoryTarget.addEventListener('change', async () => {
     appState.config.browseTarget = elements.memoryTarget.value;
     const selectedTarget = getSelectedTargetSummary();
     if (selectedTarget) {
       elements.memoryStartAddr.value = formatHex(selectedTarget.minAddr, 8);
+      elements.memoryLength.value = formatMemoryLength(getDefaultMemoryBrowseLength(selectedTarget));
     }
     syncBrowseTargetToTargetType();
     if (['cpu1', 'cm', 'cpu2'].includes(appState.config.browseTarget)) {
@@ -221,7 +248,10 @@ function setupEventListeners() {
     await refreshMemoryBrowser();
   });
   elements.memoryStartAddr.addEventListener('change', refreshMemoryBrowser);
-  elements.memoryLength.addEventListener('change', refreshMemoryBrowser);
+  elements.memoryLength.addEventListener('change', async () => {
+    normalizeMemoryLengthInput();
+    await refreshMemoryBrowser();
+  });
 
   // 操作按钮
   elements.startFlashBtn.addEventListener('click', startFlash);
@@ -483,6 +513,38 @@ function clearMemoryBrowser(message = '请选择固件文件以查看解析后�
   elements.memoryTableBody.innerHTML = `<tr><td colspan="18" class="memory-empty">${message}</td></tr>`;
 }
 
+function normalizeMemoryLengthInput() {
+  const rawValue = elements.memoryLength.value.trim();
+  const parsed = parseMemoryLength(rawValue);
+
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    elements.memoryLength.value = formatMemoryLength(DEFAULT_MEMORY_BROWSE_LENGTH);
+    return DEFAULT_MEMORY_BROWSE_LENGTH;
+  }
+
+  const normalized = Math.min(parsed, MAX_MEMORY_BROWSE_LENGTH);
+  elements.memoryLength.value = formatMemoryLength(normalized);
+  return normalized;
+}
+
+function getDefaultMemoryBrowseLength(targetSummary) {
+  if (!targetSummary || !Number.isFinite(targetSummary.totalBytes) || targetSummary.totalBytes <= 0) {
+    return DEFAULT_MEMORY_BROWSE_LENGTH;
+  }
+
+  return Math.min(targetSummary.totalBytes, MAX_MEMORY_BROWSE_LENGTH);
+}
+
+function updateMemorySectionVisibility() {
+  elements.memorySection.classList.toggle('collapsed', appState.isMemorySectionCollapsed);
+  elements.toggleMemorySectionBtn.setAttribute('aria-expanded', String(!appState.isMemorySectionCollapsed));
+}
+
+function toggleMemorySection() {
+  appState.isMemorySectionCollapsed = !appState.isMemorySectionCollapsed;
+  updateMemorySectionVisibility();
+}
+
 function getSelectedTargetSummary() {
   return appState.availableTargets.find((item) => item.target === appState.config.browseTarget) || null;
 }
@@ -596,8 +658,9 @@ function populateMemoryTargets() {
   }
 
   const selectedTarget = appState.availableTargets.find((target) => target.target === appState.config.browseTarget);
-  if (selectedTarget && !elements.memoryStartAddr.value.trim()) {
+  if (selectedTarget) {
     elements.memoryStartAddr.value = formatHex(selectedTarget.minAddr, 8);
+    elements.memoryLength.value = formatMemoryLength(getDefaultMemoryBrowseLength(selectedTarget));
   }
 
   appState.availableTargets.forEach((target) => {
@@ -618,11 +681,12 @@ async function refreshMemoryBrowser() {
   }
 
   try {
+    const browseLength = normalizeMemoryLengthInput();
     const result = await window.electronAPI.browseFirmwareMemory({
       ...collectConfig(),
       browseTarget: appState.config.browseTarget,
       startAddress: elements.memoryStartAddr.value.trim(),
-      length: elements.memoryLength.value
+      length: browseLength
     });
 
     if (!result.success) {

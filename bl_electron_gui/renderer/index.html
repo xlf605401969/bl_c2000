@@ -61,58 +61,13 @@
           <h2>固件来源</h2>
           <div class="form-group">
             <label>
-              <input type="radio" name="firmwareFormat" value="legacy" checked>
-              传统HEX
+              <input type="radio" name="firmwareFormat" value="legacy">
+              分离HEX
             </label>
             <label>
-              <input type="radio" name="firmwareFormat" value="hex2">
+              <input type="radio" name="firmwareFormat" value="hex2" checked>
               HEX2组合文件
             </label>
-          </div>
-        </section>
-
-        <section class="config-section">
-          <h2>目标选择</h2>
-          <div class="form-group">
-            <label>
-              <input type="radio" name="targetType" value="main" checked>
-              主MCU (C2000, 16位内存)
-            </label>
-            <label>
-              <input type="radio" name="targetType" value="cm">
-              CM核 (8位内存)
-            </label>
-            <label>
-              <input type="radio" name="targetType" value="cpu2">
-              CPU2 (16位内存)
-            </label>
-          </div>
-          <div id="hex2TargetHint" class="inline-hint" style="display: none;">
-            HEX2模式下，这里用于切换当前查看与AppInfo解析目标。
-          </div>
-          <div id="legacyTargetHint" class="inline-hint" style="display: none;">
-            传统HEX模式当前仅支持主MCU和CM，CPU2请使用HEX2文件。
-          </div>
-        </section>
-
-        <section class="config-section" id="flashTargetSection" style="display: none;">
-          <h2>烧录目标</h2>
-          <div id="flashTargetGroup" class="target-checklist">
-            <label class="target-check-item">
-              <input type="checkbox" name="flashTarget" value="main">
-              主MCU (CPU1)
-            </label>
-            <label class="target-check-item">
-              <input type="checkbox" name="flashTarget" value="cm">
-              CM核
-            </label>
-            <label class="target-check-item">
-              <input type="checkbox" name="flashTarget" value="cpu2">
-              CPU2
-            </label>
-          </div>
-          <div id="flashTargetHint" class="inline-hint">
-            可多选；执行时按 CPU2 → CM → CPU1 的顺序依次烧录。
           </div>
         </section>
 
@@ -158,10 +113,47 @@
         </section>
 
         <section class="config-section">
-          <h2>高级设置</h2>
+          <h2>目标选择</h2>
           <div class="form-group">
-            <label for="chunkSize">数据块大小 (字节):</label>
-            <input type="number" id="chunkSize" class="form-control" value="64" min="16" max="256" step="16">
+            <label>
+              <input type="radio" name="targetType" value="main" checked>
+              主MCU (C2000, 16位内存)
+            </label>
+            <label>
+              <input type="radio" name="targetType" value="cm">
+              CM核 (8位内存)
+            </label>
+            <label>
+              <input type="radio" name="targetType" value="cpu2">
+              CPU2 (16位内存)
+            </label>
+          </div>
+          <div id="hex2TargetHint" class="inline-hint" style="display: none;">
+            HEX2模式下，这里用于切换当前查看与AppInfo解析目标。
+          </div>
+          <div id="legacyTargetHint" class="inline-hint" style="display: none;">
+            分离HEX模式当前仅支持主MCU和CM，CPU2请使用HEX2文件。
+          </div>
+        </section>
+
+        <section class="config-section" id="flashTargetSection" style="display: none;">
+          <h2>烧录目标</h2>
+          <div id="flashTargetGroup" class="target-checklist">
+            <label class="target-check-item">
+              <input type="checkbox" name="flashTarget" value="main">
+              主MCU (CPU1)
+            </label>
+            <label class="target-check-item">
+              <input type="checkbox" name="flashTarget" value="cm">
+              CM核
+            </label>
+            <label class="target-check-item">
+              <input type="checkbox" name="flashTarget" value="cpu2">
+              CPU2
+            </label>
+          </div>
+          <div id="flashTargetHint" class="inline-hint">
+            可多选；执行时按 CPU2 → CM → CPU1 的顺序依次烧录。
           </div>
         </section>
 
@@ -190,6 +182,14 @@
             </button>
           </div>
         </section>
+
+        <section class="config-section">
+          <h2>高级设置</h2>
+          <div class="form-group">
+            <label for="chunkSize">数据块大小 (字节):</label>
+            <input type="number" id="chunkSize" class="form-control" value="64" min="16" max="256" step="16">
+          </div>
+        </section>
       </aside>
 
       <!-- 右侧日志和进度区 -->
@@ -214,66 +214,66 @@
           </div>
         </section>
 
-        <section class="memory-section">
+        <section id="memorySection" class="memory-section">
           <div class="memory-header">
-            <h2>内存浏览器</h2>
+            <button id="toggleMemorySection" class="memory-toggle" type="button" aria-expanded="true">
+              <span class="memory-toggle-icon">▾</span>
+              <span>内存浏览器</span>
+            </button>
             <button id="refreshMemoryBrowser" class="btn btn-secondary btn-small">刷新视图</button>
           </div>
 
-          <div class="memory-controls">
-            <div class="form-group">
-              <label for="memoryTarget">目标:</label>
-              <select id="memoryTarget" class="form-control">
-                <option value="">暂无已加载目标</option>
-              </select>
+          <div id="memorySectionBody" class="memory-section-body">
+            <div class="memory-controls">
+              <div class="form-group">
+                <label for="memoryTarget">目标:</label>
+                <select id="memoryTarget" class="form-control">
+                  <option value="">暂无已加载目标</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="memoryStartAddr">起始地址:</label>
+                <input type="text" id="memoryStartAddr" class="form-control" placeholder="0x00000000">
+              </div>
+              <div class="form-group">
+                <label for="memoryLength">长度(字节):</label>
+                <input type="text" id="memoryLength" class="form-control" value="0x80" placeholder="支持 10 进制或 0x 十六进制，最大 0x800000">
+              </div>
             </div>
-            <div class="form-group">
-              <label for="memoryStartAddr">起始地址:</label>
-              <input type="text" id="memoryStartAddr" class="form-control" placeholder="0x00000000">
-            </div>
-            <div class="form-group">
-              <label for="memoryLength">长度(字节):</label>
-              <select id="memoryLength" class="form-control">
-                <option value="64">64</option>
-                <option value="128" selected>128</option>
-                <option value="256">256</option>
-                <option value="512">512</option>
-              </select>
-            </div>
-          </div>
 
-          <div id="memorySummary" class="memory-summary">未加载固件</div>
+            <div id="memorySummary" class="memory-summary">未加载固件</div>
 
-          <div class="memory-table-wrapper">
-            <table class="memory-table">
-              <thead>
-                <tr>
-                  <th>地址</th>
-                  <th>00</th>
-                  <th>01</th>
-                  <th>02</th>
-                  <th>03</th>
-                  <th>04</th>
-                  <th>05</th>
-                  <th>06</th>
-                  <th>07</th>
-                  <th>08</th>
-                  <th>09</th>
-                  <th>0A</th>
-                  <th>0B</th>
-                  <th>0C</th>
-                  <th>0D</th>
-                  <th>0E</th>
-                  <th>0F</th>
-                  <th>ASCII</th>
-                </tr>
-              </thead>
-              <tbody id="memoryTableBody">
-                <tr>
-                  <td colspan="18" class="memory-empty">请选择固件文件以查看解析后的内存内容</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="memory-table-wrapper">
+              <table class="memory-table">
+                <thead>
+                  <tr>
+                    <th>地址</th>
+                    <th>00</th>
+                    <th>01</th>
+                    <th>02</th>
+                    <th>03</th>
+                    <th>04</th>
+                    <th>05</th>
+                    <th>06</th>
+                    <th>07</th>
+                    <th>08</th>
+                    <th>09</th>
+                    <th>0A</th>
+                    <th>0B</th>
+                    <th>0C</th>
+                    <th>0D</th>
+                    <th>0E</th>
+                    <th>0F</th>
+                    <th>ASCII</th>
+                  </tr>
+                </thead>
+                <tbody id="memoryTableBody">
+                  <tr>
+                    <td colspan="18" class="memory-empty">请选择固件文件以查看解析后的内存内容</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
 
