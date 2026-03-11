@@ -71,34 +71,9 @@
           </div>
         </section>
 
-        <section class="config-section" id="mainMcuSection">
-          <h2>主MCU固件文件</h2>
-          <div class="form-group">
-            <label>低字节HEX:</label>
-            <div class="file-input-group">
-              <input type="text" id="lowHexPath" class="form-control" readonly placeholder="请选择文件...">
-              <button id="selectLowHex" class="btn btn-primary">浏览</button>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>高字节HEX:</label>
-            <div class="file-input-group">
-              <input type="text" id="highHexPath" class="form-control" readonly placeholder="请选择文件...">
-              <button id="selectHighHex" class="btn btn-primary">浏览</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="config-section" id="cmMcuSection" style="display: none;">
-          <h2>CM核固件文件</h2>
-          <div class="form-group">
-            <label>HEX文件:</label>
-            <div class="file-input-group">
-              <input type="text" id="cmHexPath" class="form-control" readonly placeholder="请选择文件...">
-              <button id="selectCmHex" class="btn btn-primary">浏览</button>
-            </div>
-          </div>
+        <section class="config-section" id="legacyTargetsSection" style="display: none;">
+          <h2>分离HEX固件文件</h2>
+          <div id="legacyTargetsContainer"></div>
         </section>
 
         <section class="config-section" id="hex2Section" style="display: none;">
@@ -114,46 +89,20 @@
 
         <section class="config-section">
           <h2>目标选择</h2>
-          <div class="form-group">
-            <label>
-              <input type="radio" name="targetType" value="main" checked>
-              主MCU (C2000, 16位内存)
-            </label>
-            <label>
-              <input type="radio" name="targetType" value="cm">
-              CM核 (8位内存)
-            </label>
-            <label>
-              <input type="radio" name="targetType" value="cpu2">
-              CPU2 (16位内存)
-            </label>
-          </div>
+          <div id="targetTypeGroup" class="form-group"></div>
           <div id="hex2TargetHint" class="inline-hint" style="display: none;">
             HEX2模式下，这里用于切换当前查看与AppInfo解析目标。
           </div>
           <div id="legacyTargetHint" class="inline-hint" style="display: none;">
-            分离HEX模式当前仅支持主MCU和CM，CPU2请使用HEX2文件。
+            分离HEX模式下，可用目标由配置文件决定。
           </div>
         </section>
 
         <section class="config-section" id="flashTargetSection" style="display: none;">
           <h2>烧录目标</h2>
-          <div id="flashTargetGroup" class="target-checklist">
-            <label class="target-check-item">
-              <input type="checkbox" name="flashTarget" value="main">
-              主MCU (CPU1)
-            </label>
-            <label class="target-check-item">
-              <input type="checkbox" name="flashTarget" value="cm">
-              CM核
-            </label>
-            <label class="target-check-item">
-              <input type="checkbox" name="flashTarget" value="cpu2">
-              CPU2
-            </label>
-          </div>
+          <div id="flashTargetGroup" class="target-checklist"></div>
           <div id="flashTargetHint" class="inline-hint">
-            可多选；执行时按 CPU2 → CM → CPU1 的顺序依次烧录。
+            可多选；执行顺序由配置文件中的优先级决定。
           </div>
         </section>
 
@@ -465,11 +414,7 @@
         </div>
         <div class="modal-body">
           <div class="info-section erase-section-tight">
-            <div class="target-checklist erase-target-switch">
-              <button type="button" class="btn btn-secondary erase-target-btn" data-erase-target="main">CPU1</button>
-              <button type="button" class="btn btn-secondary erase-target-btn" data-erase-target="cm">CM</button>
-              <button type="button" class="btn btn-secondary erase-target-btn" data-erase-target="cpu2">CPU2</button>
-            </div>
+            <div id="eraseTargetSwitch" class="target-checklist erase-target-switch"></div>
           </div>
 
           <div class="info-section erase-section-tight">

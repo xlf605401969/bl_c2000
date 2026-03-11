@@ -37,6 +37,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "gui-config.json",
       "renderer/**/*",
       "src/**/*",
       "package.json"

@@ -1,0 +1,33 @@
+{
+  "defaultFirmwareFormat": "hex2",
+  "defaultTarget": "main",
+  "appInfoTarget": "main",
+  "targets": [
+    {
+      "id": "main",
+      "firmwareTarget": "cpu1",
+      "label": "主MCU",
+      "displayName": "CPU1",
+      "bitWidth": 16,
+      "protocolTargetCode": 0,
+      "flashPriority": 1,
+      "legacySupported": true,
+      "bootloaderErase": {
+        "enabled": true,
+        "defaultStart": "0x00080000",
+        "defaultEndExclusive": "0x00088000",
+        "editable": true
+      }
+    },
+    {
+      "id": "cm",
+      "firmwareTarget": "cm",
+      "label": "CM核",
+      "displayName": "CM",
+      "bitWidth": 8,
+      "protocolTargetCode": 1,
+      "flashPriority": 2,
+      "legacySupported": true
+    }
+  ]
+}

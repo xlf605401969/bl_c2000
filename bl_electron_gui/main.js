@@ -3,6 +3,7 @@ const path = require('path');
 const { SerialPort } = require('serialport');
 const Flasher = require('./src/flasher');
 const { loadFirmwareDocument } = require('./src/firmware-document');
+const { loadGuiConfig } = require('./src/gui-config');
 
 let mainWindow;
 let flasher = null;
@@ -30,50 +31,37 @@ function parseAddressString(value) {
 }
 
 function resolveTargetKey(targetType) {
-  if (targetType === 'main') {
-    return 'cpu1';
-  }
-  if (targetType === 'cm') {
-    return 'cm';
-  }
-  if (targetType === 'cpu2') {
-    return 'cpu2';
-  }
-  return null;
+  const guiConfig = loadGuiConfig();
+  const target = guiConfig.targets.find((item) => item.id === targetType);
+  return target ? target.firmwareTarget : null;
 }
 
 function resolveTargetCode(targetType) {
-  if (targetType === 'main') {
-    return 0x00;
+  const guiConfig = loadGuiConfig();
+  const target = guiConfig.targets.find((item) => item.id === targetType);
+  if (!target) {
+    throw new Error(`未知目标类型: ${targetType}`);
   }
-  if (targetType === 'cm') {
-    return 0x01;
-  }
-  if (targetType === 'cpu2') {
-    return 0x02;
-  }
-  throw new Error(`未知目标类型: ${targetType}`);
+  return target.protocolTargetCode;
 }
 
 function getFlashTargetSequence(config) {
-  const priority = {
-    main: 1,
-    cm: 2,
-    cpu2: 3
-  };
+  const guiConfig = loadGuiConfig();
+  const priority = new Map(guiConfig.targets.map((target) => [target.id, target.flashPriority]));
 
   const requestedTargets = config.firmwareFormat === 'hex2'
     ? (Array.isArray(config.flashTargets) ? config.flashTargets : [])
     : [config.targetType];
 
-  const uniqueTargets = Array.from(new Set(requestedTargets.filter((target) => priority[target])));
-  return uniqueTargets.sort((left, right) => priority[right] - priority[left]);
+  const uniqueTargets = Array.from(new Set(requestedTargets.filter((target) => priority.has(target))));
+  return uniqueTargets.sort((left, right) => priority.get(right) - priority.get(left));
 }
 
 function getFirmwareCacheKey(config) {
   return JSON.stringify({
     firmwareFormat: config.firmwareFormat || 'legacy',
     targetType: config.targetType || 'main',
+    legacyFiles: config.legacyFiles || null,
     lowHexFile: config.lowHexFile || '',
     highHexFile: config.highHexFile || '',
     cmHexFile: config.cmHexFile || '',
@@ -87,7 +75,11 @@ async function getFirmwareDocument(config) {
     return firmwareDocumentCache.get(cacheKey);
   }
 
-  const document = await loadFirmwareDocument(config);
+  const guiConfig = loadGuiConfig();
+  const document = await loadFirmwareDocument({
+    ...config,
+    targetDefinitions: guiConfig.targets
+  });
   firmwareDocumentCache.set(cacheKey, document);
   return document;
 }
@@ -127,6 +119,20 @@ app.on('window-all-closed', function () {
 });
 
 // IPC处理器
+
+ipcMain.handle('load-gui-config', async () => {
+  try {
+    return {
+      success: true,
+      config: loadGuiConfig()
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
 
 // 列出可用串口
 ipcMain.handle('list-serial-ports', async () => {
@@ -411,9 +417,11 @@ ipcMain.handle('parse-app-info', async (event, config) => {
     }
 
     const firmwareDocument = await getFirmwareDocument(config);
-    const image = firmwareDocument.getTarget('cpu1');
+    const guiConfig = loadGuiConfig();
+    const appInfoTarget = guiConfig.targets.find((item) => item.id === guiConfig.appInfoTarget) || guiConfig.targets[0];
+    const image = firmwareDocument.getTarget(appInfoTarget.firmwareTarget);
     if (!image) {
-      return { success: false, error: '当前固件中未找到 CPU1 目标' };
+      return { success: false, error: `当前固件中未找到 ${appInfoTarget.displayName} 目标` };
     }
 
     const appInfoResult = image.parseAppInfo(address);

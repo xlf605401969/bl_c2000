@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   // 串口操作
   listSerialPorts: () => ipcRenderer.invoke('list-serial-ports'),
+  loadGuiConfig: () => ipcRenderer.invoke('load-gui-config'),
   
   // 文件选择
   selectFile: (options) => ipcRenderer.invoke('select-file', options),

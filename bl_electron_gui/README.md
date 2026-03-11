@@ -119,6 +119,59 @@ npm run build
 - “擦除 APP” 不再读取芯片信息，而是直接对当前目标发送 bootloader 的默认 APP 全擦除命令。
 - “擦除指定地址范围” 允许手动输入起始和结束地址，结束地址为不包含上界。
 
+## GUI配置
+
+GUI 会从根目录的 [bl_electron_gui/gui-config.json](bl_electron_gui/gui-config.json) 读取目标定义，并据此动态生成页面与操作逻辑。
+
+这份配置会决定：
+
+- 一共有多少个目标
+- 每个目标在 GUI 中的名称
+- 每个目标接收 8 位还是 16 位固件
+- 每个目标对应的 HEX2 `target`
+- 每个目标对应的 bootloader 协议目标号
+- 哪些目标支持分离 HEX 模式
+- 每个目标的擦除行为和 Bootloader 默认地址范围
+
+配置示例：
+
+```json
+{
+   "defaultFirmwareFormat": "hex2",
+   "defaultTarget": "main",
+   "appInfoTarget": "main",
+   "targets": [
+      {
+         "id": "main",
+         "firmwareTarget": "cpu1",
+         "label": "主MCU",
+         "displayName": "CPU1",
+         "bitWidth": 16,
+         "protocolTargetCode": 0,
+         "flashPriority": 1,
+         "legacySupported": true
+      },
+      {
+         "id": "cm",
+         "firmwareTarget": "cm",
+         "label": "CM核",
+         "displayName": "CM",
+         "bitWidth": 8,
+         "protocolTargetCode": 1,
+         "flashPriority": 2,
+         "legacySupported": true
+      }
+   ]
+}
+```
+
+说明：
+
+- `bitWidth: 16` 的目标在分离 HEX 模式下需要 `low/high` 两个文件。
+- `bitWidth: 8` 的目标在分离 HEX 模式下只需要一个 HEX 文件。
+- HEX2 模式下也会校验 `bitWidth` 与分段实际地址单位是否一致：`16bit` 目标必须对应 `word16`，`8bit` 目标必须对应 `byte8`，不一致时会在加载固件时直接报错。
+- 目标选择、烧录目标、擦除弹窗和相关校验逻辑，都会随这份配置自动变化。
+
 ## 烧录流程
 
 程序会自动执行以下步骤：

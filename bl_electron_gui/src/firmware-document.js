@@ -422,8 +422,59 @@ class FirmwareDocument {
 }
 
 async function createLegacyDocument(config) {
-  const { targetType, lowHexFile, highHexFile, cmHexFile } = config;
+  const { targetType, lowHexFile, highHexFile, cmHexFile, legacyFiles, targetDefinitions = [] } = config;
   const targets = new Map();
+  const selectedTarget = targetDefinitions.find((item) => item.id === targetType);
+
+  if (selectedTarget) {
+    const targetFiles = legacyFiles && legacyFiles[targetType] ? legacyFiles[targetType] : {};
+
+    if (selectedTarget.bitWidth === 16) {
+      const lowFile = targetFiles.low || lowHexFile;
+      const highFile = targetFiles.high || highHexFile;
+      if (!lowFile || !highFile) {
+        throw new Error(`${selectedTarget.displayName} 缺少低字节或高字节HEX文件`);
+      }
+
+      const lowData = parseIntelHexContent(fs.readFileSync(lowFile, 'utf-8'));
+      const highData = parseIntelHexContent(fs.readFileSync(highFile, 'utf-8'));
+      const merged = mergeWordData(lowData, highData);
+      targets.set(selectedTarget.firmwareTarget, new ParsedTargetImage({
+        target: selectedTarget.firmwareTarget,
+        addrUnit: 'word16',
+        dataBlocks: merged.dataBlocks,
+        minAddr: merged.minAddr,
+        maxAddr: merged.maxAddr,
+        segmentNames: [`legacy-${targetType}-low`, `legacy-${targetType}-high`],
+        purpose: 'firmware'
+      }));
+
+      return new FirmwareDocument({ format: 'legacy', source: 'legacy', targets });
+    }
+
+    if (selectedTarget.bitWidth === 8) {
+      const file = targetFiles.single || cmHexFile;
+      if (!file) {
+        throw new Error(`${selectedTarget.displayName} 缺少HEX文件`);
+      }
+
+      const data = parseIntelHexContent(fs.readFileSync(file, 'utf-8'));
+      const merged = mergeByteData(data);
+      targets.set(selectedTarget.firmwareTarget, new ParsedTargetImage({
+        target: selectedTarget.firmwareTarget,
+        addrUnit: 'byte8',
+        dataBlocks: merged.dataBlocks,
+        minAddr: merged.minAddr,
+        maxAddr: merged.maxAddr,
+        segmentNames: [`legacy-${targetType}`],
+        purpose: 'firmware'
+      }));
+
+      return new FirmwareDocument({ format: 'legacy', source: 'legacy', targets });
+    }
+
+    throw new Error(`不支持的目标位宽: ${selectedTarget.bitWidth}`);
+  }
 
   if (targetType === 'main') {
     if (!lowHexFile || !highHexFile) {
@@ -465,7 +516,27 @@ async function createLegacyDocument(config) {
   return new FirmwareDocument({ format: 'legacy', source: 'legacy', targets });
 }
 
-async function createHex2Document(hex2File) {
+function validateHex2TargetsAgainstConfig(targets, targetDefinitions = []) {
+  if (!Array.isArray(targetDefinitions) || targetDefinitions.length === 0) {
+    return;
+  }
+
+  for (const targetDefinition of targetDefinitions) {
+    const image = targets.get(targetDefinition.firmwareTarget);
+    if (!image) {
+      continue;
+    }
+
+    const expectedAddrUnit = targetDefinition.bitWidth === 16 ? 'word16' : 'byte8';
+    if (image.addrUnit !== expectedAddrUnit) {
+      throw new Error(
+        `目标 ${targetDefinition.displayName} 位宽配置为 ${targetDefinition.bitWidth}bit，但 HEX2 中 target=${targetDefinition.firmwareTarget} 实际为 ${image.addrUnit}`
+      );
+    }
+  }
+}
+
+async function createHex2Document(hex2File, targetDefinitions = []) {
   const content = fs.readFileSync(hex2File, 'utf-8');
   const lines = content.split(/\r?\n/);
   const segments = [];
@@ -604,6 +675,7 @@ async function createHex2Document(hex2File) {
     }));
   }
 
+  validateHex2TargetsAgainstConfig(targets, targetDefinitions);
   return new FirmwareDocument({ format: 'hex2', source: hex2File, targets });
 }
 
@@ -612,7 +684,7 @@ async function loadFirmwareDocument(config) {
     if (!config.hex2File) {
       throw new Error('未选择 HEX2 文件');
     }
-    return createHex2Document(config.hex2File);
+    return createHex2Document(config.hex2File, config.targetDefinitions || []);
   }
   return createLegacyDocument(config);
 }
