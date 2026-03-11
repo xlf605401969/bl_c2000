@@ -156,7 +156,7 @@ ipcMain.handle('select-file', async (event, options) => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
       filters: [
-        { name: '固件文件', extensions: ['hex', 'HEX', 'hex2', 'HEX2'] },
+        { name: '固件文件', extensions: ['hex', 'HEX', 'hex2', 'HEX2', 'i01', 'I01'] },
         { name: '所有文件', extensions: ['*'] }
       ],
       ...options
@@ -334,6 +334,37 @@ ipcMain.handle('jump-to-app', async (event, config) => {
   }
 });
 
+ipcMain.handle('erase-flash', async (event, config) => {
+  try {
+    const { port, baudrate, slaveId, targetType = 'main', eraseMode = 'custom', startAddr, length } = config;
+    const parsedStartAddr = parseAddressString(startAddr);
+    const parsedLength = parseAddressString(length);
+
+    if (eraseMode !== 'app' && (parsedStartAddr === null || Number.isNaN(parsedStartAddr) || parsedStartAddr < 0)) {
+      return { success: false, error: '擦除起始地址无效' };
+    }
+
+    if (eraseMode !== 'app' && (parsedLength === null || Number.isNaN(parsedLength) || parsedLength <= 0)) {
+      return { success: false, error: '擦除长度无效' };
+    }
+
+    const tempFlasher = new Flasher(port, baudrate, slaveId);
+    const result = await tempFlasher.eraseFlashRange(
+      eraseMode === 'app' ? undefined : parsedStartAddr,
+      eraseMode === 'app' ? undefined : parsedLength,
+      resolveTargetCode(targetType)
+    );
+    await tempFlasher.disconnect();
+
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
 // 读取APP信息
 ipcMain.handle('read-app-info', async (event, config) => {
   try {
@@ -355,10 +386,10 @@ ipcMain.handle('read-app-info', async (event, config) => {
 // 读取完整系统信息
 ipcMain.handle('read-system-info', async (event, config) => {
   try {
-    const { port, baudrate, slaveId } = config;
+    const { port, baudrate, slaveId, targetType = 'main' } = config;
     
     const tempFlasher = new Flasher(port, baudrate, slaveId);
-    const result = await tempFlasher.readSystemInfo();
+    const result = await tempFlasher.readSystemInfo(resolveTargetCode(targetType));
     await tempFlasher.disconnect();
     
     return result;

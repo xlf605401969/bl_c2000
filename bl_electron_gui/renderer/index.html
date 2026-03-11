@@ -174,6 +174,9 @@
             <button id="openAppInfo" class="btn btn-secondary btn-small">
               查看固件AppInfo
             </button>
+            <button id="openEraseModal" class="btn btn-secondary btn-small">
+              擦除芯片...
+            </button>
             <button id="jumpToApp" class="btn btn-secondary btn-small">
               跳转到应用
             </button>
@@ -449,6 +452,78 @@
               <label>Tag:</label>
               <input type="text" id="appInfoTag" class="form-control" readonly>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="eraseModal" class="modal">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>🗑️ 擦除芯片</h2>
+          <button id="closeEraseModal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="info-section erase-section-tight">
+            <div class="target-checklist erase-target-switch">
+              <button type="button" class="btn btn-secondary erase-target-btn" data-erase-target="main">CPU1</button>
+              <button type="button" class="btn btn-secondary erase-target-btn" data-erase-target="cm">CM</button>
+              <button type="button" class="btn btn-secondary erase-target-btn" data-erase-target="cpu2">CPU2</button>
+            </div>
+          </div>
+
+          <div class="info-section erase-section-tight">
+            <div class="info-grid erase-target-grid">
+              <div class="info-item">
+                <span class="info-label">当前目标:</span>
+                <span id="eraseTargetLabel" class="info-value">CPU1</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">范围来源:</span>
+                <span id="eraseRangeSource" class="info-value">CPU1 Bootloader 默认范围</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>擦除模式:</label>
+            <div class="target-checklist erase-mode-list">
+              <label id="eraseBootloaderOption" class="target-check-item">
+                <input type="radio" name="erasePreset" value="bootloader" checked>
+                擦除 Bootloader（默认 0x80000 - 0x88000，可手动修改）
+              </label>
+              <label class="target-check-item">
+                <input type="radio" name="erasePreset" value="app">
+                擦除 APP（直接发送默认全擦除命令）
+              </label>
+              <label class="target-check-item">
+                <input type="radio" name="erasePreset" value="custom">
+                擦除指定地址范围
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group-row erase-range-row">
+            <div class="form-group">
+              <label for="eraseStartAddr">起始地址:</label>
+              <input type="text" id="eraseStartAddr" class="form-control" value="0x00080000">
+            </div>
+            <div class="form-group">
+              <label for="eraseEndAddr">结束地址(不含):</label>
+              <input type="text" id="eraseEndAddr" class="form-control" value="0x00088000">
+            </div>
+            <div class="form-group">
+              <label for="eraseLength">长度:</label>
+              <input type="text" id="eraseLength" class="form-control" value="0x00008000" readonly>
+            </div>
+          </div>
+
+          <div id="eraseStatus" class="inline-hint erase-status">
+            选择目标和擦除模式后即可执行。APP 擦除将直接使用 bootloader 的默认 APP 全擦除命令。
+          </div>
+
+          <div class="modal-actions">
+            <button id="confirmErase" class="btn btn-danger">执行擦除</button>
           </div>
         </div>
       </div>

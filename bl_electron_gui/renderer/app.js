@@ -5,6 +5,8 @@ const appState = {
   startTime: null,
   firmwareDocument: null,
   availableTargets: [],
+  lastSystemInfo: null,
+  eraseTargetType: 'main',
   isMemorySectionCollapsed: false,
   config: {
     firmwareFormat: 'hex2',
@@ -24,6 +26,11 @@ const appState = {
 
 const MAX_MEMORY_BROWSE_LENGTH = 8 * 1024 * 1024;
 const DEFAULT_MEMORY_BROWSE_LENGTH = 128;
+const INITIAL_MEMORY_BROWSE_LENGTH = 1024;
+const BOOTLOADER_ERASE_RANGE = {
+  start: 0x00080000,
+  endExclusive: 0x00088000
+};
 
 function formatMemoryLength(value) {
   return `0x${value.toString(16).toUpperCase()}`;
@@ -76,6 +83,7 @@ const elements = {
 
   // 固件AppInfo
   openAppInfoBtn: document.getElementById('openAppInfo'),
+  openEraseModalBtn: document.getElementById('openEraseModal'),
   appInfoAddrInput: document.getElementById('appInfoAddr'),
   refreshAppInfoBtn: document.getElementById('refreshAppInfo'),
   appInfoStatus: document.getElementById('appInfoStatus'),
@@ -105,6 +113,18 @@ const elements = {
   closeSystemInfoModalBtn: document.getElementById('closeSystemInfoModal'),
   appInfoModal: document.getElementById('appInfoModal'),
   closeAppInfoModalBtn: document.getElementById('closeAppInfoModal'),
+  eraseModal: document.getElementById('eraseModal'),
+  closeEraseModalBtn: document.getElementById('closeEraseModal'),
+  eraseTargetButtons: document.querySelectorAll('.erase-target-btn'),
+  erasePresetRadios: document.querySelectorAll('input[name="erasePreset"]'),
+  eraseBootloaderOption: document.getElementById('eraseBootloaderOption'),
+  eraseTargetLabel: document.getElementById('eraseTargetLabel'),
+  eraseRangeSource: document.getElementById('eraseRangeSource'),
+  eraseStartAddr: document.getElementById('eraseStartAddr'),
+  eraseEndAddr: document.getElementById('eraseEndAddr'),
+  eraseLength: document.getElementById('eraseLength'),
+  eraseStatus: document.getElementById('eraseStatus'),
+  confirmEraseBtn: document.getElementById('confirmErase'),
   
   // Bootloader信息显示
   blMagic: document.getElementById('blMagic'),
@@ -228,6 +248,7 @@ function setupEventListeners() {
   elements.selectCmHexBtn.addEventListener('click', () => selectFile('cmHex'));
   elements.selectHex2Btn.addEventListener('click', () => selectFile('hex2'));
   elements.openAppInfoBtn.addEventListener('click', openAppInfoModal);
+  elements.openEraseModalBtn.addEventListener('click', openEraseModal);
   elements.appInfoAddrInput.addEventListener('change', () => parseFirmwareAppInfo({ silent: false }));
   elements.refreshAppInfoBtn.addEventListener('click', () => parseFirmwareAppInfo({ silent: false }));
   elements.toggleMemorySectionBtn.addEventListener('click', toggleMemorySection);
@@ -273,6 +294,26 @@ function setupEventListeners() {
       closeAppInfoModal();
     }
   });
+  elements.closeEraseModalBtn.addEventListener('click', closeEraseModal);
+  elements.eraseModal.addEventListener('click', (e) => {
+    if (e.target === elements.eraseModal) {
+      closeEraseModal();
+    }
+  });
+  elements.eraseTargetButtons.forEach((button) => {
+    button.addEventListener('click', async () => {
+      appState.eraseTargetType = button.dataset.eraseTarget || 'main';
+      await updateEraseRangeByPreset();
+    });
+  });
+  elements.erasePresetRadios.forEach((radio) => {
+    radio.addEventListener('change', () => {
+      void updateEraseRangeByPreset();
+    });
+  });
+  elements.eraseStartAddr.addEventListener('input', updateCustomEraseLength);
+  elements.eraseEndAddr.addEventListener('input', updateCustomEraseLength);
+  elements.confirmEraseBtn.addEventListener('click', executeEraseFlash);
 
   // 日志清空
   elements.clearLogBtn.addEventListener('click', clearLog);
@@ -532,7 +573,7 @@ function getDefaultMemoryBrowseLength(targetSummary) {
     return DEFAULT_MEMORY_BROWSE_LENGTH;
   }
 
-  return Math.min(targetSummary.totalBytes, MAX_MEMORY_BROWSE_LENGTH);
+  return Math.min(targetSummary.totalBytes, INITIAL_MEMORY_BROWSE_LENGTH, MAX_MEMORY_BROWSE_LENGTH);
 }
 
 function updateMemorySectionVisibility() {
@@ -725,6 +766,252 @@ function formatHex(value, width) {
     return '-';
   }
   return `0x${value.toString(16).toUpperCase().padStart(width, '0')}`;
+}
+
+function getQuickActionConfig() {
+  return {
+    port: elements.portSelect.value,
+    baudrate: parseInt(elements.baudrateSelect.value),
+    slaveId: parseInt(elements.slaveIdInput.value),
+    targetType: appState.config.targetType
+  };
+}
+
+function getEraseTargetType() {
+  return appState.eraseTargetType || appState.config.targetType || 'main';
+}
+
+function getTargetDisplayName(targetType) {
+  if (targetType === 'cm') {
+    return 'CM';
+  }
+  if (targetType === 'cpu2') {
+    return 'CPU2';
+  }
+  return 'CPU1';
+}
+
+function getSelectedErasePreset() {
+  const selected = Array.from(elements.erasePresetRadios).find((radio) => radio.checked);
+  return selected ? selected.value : 'bootloader';
+}
+
+function setEraseStatus(message) {
+  elements.eraseStatus.textContent = message;
+}
+
+function applyEraseRange(range, sourceText, editable = false) {
+  elements.eraseStartAddr.value = formatHex(range.start, 8);
+  elements.eraseEndAddr.value = formatHex(range.endExclusive, 8);
+  elements.eraseLength.value = formatHex(range.endExclusive - range.start, 8);
+  elements.eraseStartAddr.readOnly = !editable;
+  elements.eraseEndAddr.readOnly = !editable;
+  elements.eraseLength.readOnly = true;
+  elements.eraseRangeSource.textContent = sourceText;
+}
+
+function getBootloaderEraseRange() {
+  return { ...BOOTLOADER_ERASE_RANGE };
+}
+
+function setErasePreset(value) {
+  elements.erasePresetRadios.forEach((radio) => {
+    radio.checked = radio.value === value;
+  });
+}
+
+function updateEraseTargetButtonsUI() {
+  const targetType = getEraseTargetType();
+  elements.eraseTargetButtons.forEach((button) => {
+    const isActive = button.dataset.eraseTarget === targetType;
+    button.classList.toggle('active', isActive);
+    button.classList.toggle('btn-primary', isActive);
+    button.classList.toggle('btn-secondary', !isActive);
+  });
+
+  const showBootloader = targetType === 'main';
+  elements.eraseBootloaderOption.style.display = showBootloader ? 'flex' : 'none';
+  if (!showBootloader && getSelectedErasePreset() === 'bootloader') {
+    setErasePreset('app');
+  }
+}
+
+function updateCustomEraseLength() {
+  if (getSelectedErasePreset() !== 'custom') {
+    return;
+  }
+
+  const start = parseMemoryLength(elements.eraseStartAddr.value);
+  const endExclusive = parseMemoryLength(elements.eraseEndAddr.value);
+
+  if (Number.isNaN(start) || Number.isNaN(endExclusive) || endExclusive <= start) {
+    elements.eraseLength.value = '-';
+    setEraseStatus('请输入有效的自定义范围，结束地址必须大于起始地址。');
+    return;
+  }
+
+  elements.eraseLength.value = formatHex(endExclusive - start, 8);
+  elements.eraseRangeSource.textContent = '自定义输入范围';
+  setEraseStatus(`将按自定义起止范围擦除 ${getTargetDisplayName(getEraseTargetType())}。`);
+}
+
+async function fetchSystemInfo(options = {}) {
+  const { showModal = true, silent = false } = options;
+  const config = getQuickActionConfig();
+
+  if (!config.port) {
+    if (!silent) {
+      log('请选择串口', 'error');
+    }
+    return null;
+  }
+
+  try {
+    if (!silent) {
+      log('正在读取系统信息...', 'info');
+    }
+
+    const result = await window.electronAPI.readSystemInfo(config);
+    if (!result.success) {
+      if (!silent) {
+        log(`读取系统信息失败: ${result.error}`, 'error');
+      }
+      return null;
+    }
+
+    appState.lastSystemInfo = {
+      targetType: config.targetType,
+      result
+    };
+
+    if (showModal) {
+      displaySystemInfo(result);
+    }
+
+    if (!silent) {
+      log('成功读取系统信息', 'success');
+    }
+
+    return result;
+  } catch (error) {
+    if (!silent) {
+      log(`错误: ${error.message}`, 'error');
+    }
+    return null;
+  }
+}
+
+async function updateEraseRangeByPreset() {
+  const targetType = getEraseTargetType();
+  updateEraseTargetButtonsUI();
+  elements.eraseTargetLabel.textContent = getTargetDisplayName(targetType);
+
+  if (getSelectedErasePreset() === 'bootloader') {
+    applyEraseRange(getBootloaderEraseRange(), 'CPU1 Bootloader 默认范围', true);
+    setEraseStatus('将擦除 CPU1 Bootloader 范围，可按需手动修改起始和结束地址。');
+    return;
+  }
+
+  if (getSelectedErasePreset() === 'app') {
+    elements.eraseStartAddr.value = '-';
+    elements.eraseEndAddr.value = '-';
+    elements.eraseLength.value = '由设备返回';
+    elements.eraseStartAddr.readOnly = true;
+    elements.eraseEndAddr.readOnly = true;
+    elements.eraseLength.readOnly = true;
+    elements.eraseRangeSource.textContent = '默认 APP 全擦除命令';
+    setEraseStatus(`将对 ${getTargetDisplayName(targetType)} 发送默认 APP 全擦除命令。`);
+    return;
+  }
+
+  if (!elements.eraseStartAddr.value || !elements.eraseEndAddr.value || elements.eraseLength.value === '-') {
+    applyEraseRange(getBootloaderEraseRange(), '自定义输入范围', true);
+  } else {
+    elements.eraseStartAddr.readOnly = false;
+    elements.eraseEndAddr.readOnly = false;
+    elements.eraseRangeSource.textContent = '自定义输入范围';
+  }
+  updateCustomEraseLength();
+}
+
+async function openEraseModal() {
+  if (appState.isFlashing) {
+    log('烧录过程中不能执行独立擦除', 'warning');
+    return;
+  }
+
+  appState.eraseTargetType = appState.config.targetType;
+  elements.eraseModal.classList.add('show');
+  await updateEraseRangeByPreset();
+}
+
+function closeEraseModal() {
+  elements.eraseModal.classList.remove('show');
+}
+
+async function executeEraseFlash() {
+  if (appState.isFlashing) {
+    log('烧录过程中不能执行独立擦除', 'warning');
+    return;
+  }
+
+  const config = getQuickActionConfig();
+  if (!config.port) {
+    setEraseStatus('请先选择串口。');
+    log('请选择串口', 'error');
+    return;
+  }
+
+  config.targetType = getEraseTargetType();
+
+  let start = parseMemoryLength(elements.eraseStartAddr.value);
+  let endExclusive = parseMemoryLength(elements.eraseEndAddr.value);
+  const preset = getSelectedErasePreset();
+
+  if (preset !== 'app' && (Number.isNaN(start) || Number.isNaN(endExclusive) || endExclusive <= start)) {
+    setEraseStatus('擦除范围无效，请检查起始和结束地址。');
+    log('擦除范围无效，请检查起始和结束地址', 'error');
+    return;
+  }
+
+  const length = preset === 'app' ? null : (endExclusive - start);
+  const description = preset === 'app'
+    ? `${getTargetDisplayName(config.targetType)} APP 默认全擦除`
+    : `${getTargetDisplayName(config.targetType)}: ${formatHex(start, 8)} - ${formatHex(endExclusive, 8)} (长度 ${formatHex(length, 8)})`;
+  if (!window.confirm(`确认擦除 ${description} 吗？`)) {
+    return;
+  }
+
+  elements.confirmEraseBtn.disabled = true;
+
+  try {
+    log(`开始擦除 ${description}`, 'warning');
+    setEraseStatus('正在执行擦除，请勿断电或断开连接。');
+
+    const result = await window.electronAPI.eraseFlash({
+      ...config,
+      eraseMode: preset,
+      startAddr: preset === 'app' ? undefined : start,
+      length: preset === 'app' ? undefined : length
+    });
+
+    if (!result.success) {
+      setEraseStatus(result.error);
+      log(`擦除失败: ${result.error}`, 'error');
+      return;
+    }
+
+    elements.eraseStartAddr.value = formatHex(result.startAddr, 8);
+    elements.eraseLength.value = formatHex(result.length, 8);
+    elements.eraseEndAddr.value = formatHex(result.startAddr + result.length, 8);
+    setEraseStatus('擦除完成。');
+    log(`擦除完成: 起始 ${formatHex(result.startAddr, 8)}, 长度 ${formatHex(result.length, 8)}`, 'success');
+  } catch (error) {
+    setEraseStatus(error.message);
+    log(`擦除错误: ${error.message}`, 'error');
+  } finally {
+    elements.confirmEraseBtn.disabled = false;
+  }
 }
 
 function clearFirmwareAppInfo() {
@@ -1087,30 +1374,7 @@ function clearLog() {
 
 // 读取系统信息
 async function readSystemInfo() {
-  const config = {
-    port: elements.portSelect.value,
-    baudrate: parseInt(elements.baudrateSelect.value),
-    slaveId: parseInt(elements.slaveIdInput.value)
-  };
-
-  if (!config.port) {
-    log('请选择串口', 'error');
-    return;
-  }
-
-  try {
-    log('正在读取系统信息...', 'info');
-    const result = await window.electronAPI.readSystemInfo(config);
-    
-    if (result.success) {
-      displaySystemInfo(result);
-      log('成功读取系统信息', 'success');
-    } else {
-      log(`读取系统信息失败: ${result.error}`, 'error');
-    }
-  } catch (error) {
-    log(`错误: ${error.message}`, 'error');
-  }
+  await fetchSystemInfo({ showModal: true, silent: false });
 }
 
 // 显示系统信息

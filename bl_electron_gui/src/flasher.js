@@ -340,6 +340,34 @@ class Flasher extends EventEmitter {
   }
 
   /**
+   * 独立擦除指定范围
+   */
+  async eraseFlashRange(startAddr, length, targetType = 0x00) {
+    try {
+      await this.client.connect();
+      await this.client.enterBootloaderMode();
+
+      if (targetType !== 0x00) {
+        await this.client.setSessionTarget(targetType);
+      }
+
+      const result = Number.isFinite(startAddr) && Number.isFinite(length)
+        ? await this.client.eraseFlash(startAddr, length)
+        : await this.client.eraseFlash();
+      await this.client.disconnect();
+
+      return result;
+    } catch (error) {
+      try {
+        await this.client.disconnect();
+      } catch (e) {
+        // 忽略
+      }
+      throw error;
+    }
+  }
+
+  /**
    * 读取寄存器（单独操作）
    */
   async readRegisters(startAddr, count) {
@@ -419,9 +447,14 @@ class Flasher extends EventEmitter {
   /**
    * 读取完整系统信息（Bootloader + Flash + APP）
    */
-  async readSystemInfo() {
+  async readSystemInfo(targetType = 0x00) {
     try {
       await this.client.connect();
+
+      if (targetType !== 0x00) {
+        await this.client.enterBootloaderMode();
+        await this.client.setSessionTarget(targetType);
+      }
       
       // 读取Bootloader信息 (0xF000-0xF004, 5个寄存器)
       const blResult = await this.client.readInputRegisters(0xF000, 5);

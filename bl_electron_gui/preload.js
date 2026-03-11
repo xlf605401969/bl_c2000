@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 设备操作
   enterBootloader: (config) => ipcRenderer.invoke('enter-bootloader', config),
   jumpToApp: (config) => ipcRenderer.invoke('jump-to-app', config),
+  eraseFlash: (config) => ipcRenderer.invoke('erase-flash', config),
   readAppInfo: (config) => ipcRenderer.invoke('read-app-info', config),
   readSystemInfo: (config) => ipcRenderer.invoke('read-system-info', config),
   parseFirmwareAppInfo: (config) => ipcRenderer.invoke('parse-app-info', config),
