@@ -87,8 +87,32 @@
               CPU2 (16位内存)
             </label>
           </div>
+          <div id="hex2TargetHint" class="inline-hint" style="display: none;">
+            HEX2模式下，这里用于切换当前查看与AppInfo解析目标。
+          </div>
           <div id="legacyTargetHint" class="inline-hint" style="display: none;">
             传统HEX模式当前仅支持主MCU和CM，CPU2请使用HEX2文件。
+          </div>
+        </section>
+
+        <section class="config-section" id="flashTargetSection" style="display: none;">
+          <h2>烧录目标</h2>
+          <div id="flashTargetGroup" class="target-checklist">
+            <label class="target-check-item">
+              <input type="checkbox" name="flashTarget" value="main">
+              主MCU (CPU1)
+            </label>
+            <label class="target-check-item">
+              <input type="checkbox" name="flashTarget" value="cm">
+              CM核
+            </label>
+            <label class="target-check-item">
+              <input type="checkbox" name="flashTarget" value="cpu2">
+              CPU2
+            </label>
+          </div>
+          <div id="flashTargetHint" class="inline-hint">
+            可多选；执行时按 CPU2 → CM → CPU1 的顺序依次烧录。
           </div>
         </section>
 
@@ -133,56 +157,6 @@
           </div>
         </section>
 
-        <section class="config-section appinfo-section" id="appInfoSection">
-          <h2>固件AppInfo</h2>
-          <div class="form-group">
-            <label for="appInfoAddr">AppInfo地址:</label>
-            <input type="text" id="appInfoAddr" class="form-control" value="0x088000">
-          </div>
-          <div class="appinfo-grid">
-            <div class="form-group">
-              <label>Magic:</label>
-              <input type="text" id="appInfoMagic" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>有效标志:</label>
-              <input type="text" id="appInfoValid" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>版本:</label>
-              <input type="text" id="appInfoVersion" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>入口地址:</label>
-              <input type="text" id="appInfoEntry" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>起始地址:</label>
-              <input type="text" id="appInfoStart" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>长度:</label>
-              <input type="text" id="appInfoLength" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>CRC32:</label>
-              <input type="text" id="appInfoCrc32" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>时间戳:</label>
-              <input type="text" id="appInfoTimestamp" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>Git:</label>
-              <input type="text" id="appInfoGit" class="form-control" readonly>
-            </div>
-            <div class="form-group">
-              <label>Tag:</label>
-              <input type="text" id="appInfoTag" class="form-control" readonly>
-            </div>
-          </div>
-        </section>
-
         <section class="config-section">
           <h2>高级设置</h2>
           <div class="form-group">
@@ -205,6 +179,9 @@
         <section class="config-section">
           <h2>快捷操作</h2>
           <div class="quick-actions">
+            <button id="openAppInfo" class="btn btn-secondary btn-small">
+              查看固件AppInfo
+            </button>
             <button id="jumpToApp" class="btn btn-secondary btn-small">
               跳转到应用
             </button>
@@ -316,7 +293,7 @@
       <div class="modal-content modal-large">
         <div class="modal-header">
           <h2>📊 系统信息</h2>
-          <button id="closeModal" class="btn-close">&times;</button>
+          <button id="closeSystemInfoModal" class="btn-close">&times;</button>
         </div>
         <div class="modal-body">
           <!-- Bootloader信息 -->
@@ -405,6 +382,72 @@
                 <span class="info-label">Git标签:</span>
                 <span id="infoGitTag" class="info-value">-</span>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="appInfoModal" class="modal">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>📦 固件 AppInfo</h2>
+          <button id="closeAppInfoModal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group-row appinfo-toolbar">
+            <div class="form-group appinfo-toolbar-field">
+              <label for="appInfoAddr">AppInfo地址:</label>
+              <input type="text" id="appInfoAddr" class="form-control" value="0x088000">
+            </div>
+            <div class="form-group appinfo-toolbar-button">
+              <button id="refreshAppInfo" class="btn btn-primary">解析CPU1 AppInfo</button>
+            </div>
+            <div class="form-group appinfo-toolbar-note">
+              <div id="appInfoStatus" class="inline-hint appinfo-status">仅解析 CPU1 对应固件区域</div>
+            </div>
+          </div>
+
+          <div class="appinfo-grid">
+            <div class="form-group">
+              <label>Magic:</label>
+              <input type="text" id="appInfoMagic" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>有效标志:</label>
+              <input type="text" id="appInfoValid" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>版本:</label>
+              <input type="text" id="appInfoVersion" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>入口地址:</label>
+              <input type="text" id="appInfoEntry" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>起始地址:</label>
+              <input type="text" id="appInfoStart" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>长度:</label>
+              <input type="text" id="appInfoLength" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>CRC32:</label>
+              <input type="text" id="appInfoCrc32" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>时间戳:</label>
+              <input type="text" id="appInfoTimestamp" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>Git:</label>
+              <input type="text" id="appInfoGit" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label>Tag:</label>
+              <input type="text" id="appInfoTag" class="form-control" readonly>
             </div>
           </div>
         </div>

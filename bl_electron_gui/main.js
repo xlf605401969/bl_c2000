@@ -55,6 +55,21 @@ function resolveTargetCode(targetType) {
   throw new Error(`未知目标类型: ${targetType}`);
 }
 
+function getFlashTargetSequence(config) {
+  const priority = {
+    main: 1,
+    cm: 2,
+    cpu2: 3
+  };
+
+  const requestedTargets = config.firmwareFormat === 'hex2'
+    ? (Array.isArray(config.flashTargets) ? config.flashTargets : [])
+    : [config.targetType];
+
+  const uniqueTargets = Array.from(new Set(requestedTargets.filter((target) => priority[target])));
+  return uniqueTargets.sort((left, right) => priority[right] - priority[left]);
+}
+
 function getFirmwareCacheKey(config) {
   return JSON.stringify({
     firmwareFormat: config.firmwareFormat || 'legacy',
@@ -176,6 +191,7 @@ ipcMain.handle('start-flash', async (event, config) => {
       hex2File,
       firmwareFormat,
       targetType,
+      flashTargets,
       majorVersion,
       minorVersion,
       buildVersion,
@@ -202,29 +218,44 @@ ipcMain.handle('start-flash', async (event, config) => {
     const firmwareDocument = await getFirmwareDocument({
       firmwareFormat,
       targetType,
+      flashTargets,
       lowHexFile,
       highHexFile,
       cmHexFile,
       hex2File
     });
 
-    const targetKey = resolveTargetKey(targetType);
-    const image = firmwareDocument.getTarget(targetKey);
-    if (!image) {
-      throw new Error(`当前固件中未找到目标 ${targetKey}`);
+    const flashSequence = getFlashTargetSequence({ firmwareFormat, targetType, flashTargets });
+    if (flashSequence.length === 0) {
+      throw new Error('没有可执行的烧录目标');
     }
 
-    const result = await flasher.flashParsedImage(
-      image,
-      resolveTargetCode(targetType),
-      targetKey,
-      chunkSize,
-      majorVersion,
-      minorVersion,
-      buildVersion
-    );
+    flasher.log(`烧录目标顺序: ${flashSequence.join(' -> ')}`);
 
-    return result;
+    for (const currentTargetType of flashSequence) {
+      const targetKey = resolveTargetKey(currentTargetType);
+      const image = firmwareDocument.getTarget(targetKey);
+      if (!image) {
+        throw new Error(`当前固件中未找到目标 ${targetKey}`);
+      }
+
+      flasher.log(`准备烧录目标 ${targetKey}`);
+      const result = await flasher.flashParsedImage(
+        image,
+        resolveTargetCode(currentTargetType),
+        targetKey,
+        chunkSize,
+        majorVersion,
+        minorVersion,
+        buildVersion
+      );
+
+      if (!result.success) {
+        return result;
+      }
+    }
+
+    return { success: true };
   } catch (error) {
     return {
       success: false,
@@ -342,15 +373,16 @@ ipcMain.handle('read-system-info', async (event, config) => {
 // 从固件文件解析AppInfo
 ipcMain.handle('parse-app-info', async (event, config) => {
   try {
+    const { appInfoAddr } = config;
     const address = parseAddressString(appInfoAddr);
     if (address === null || Number.isNaN(address)) {
       return { success: false, error: 'AppInfo地址无效' };
     }
 
     const firmwareDocument = await getFirmwareDocument(config);
-    const image = firmwareDocument.getTarget(resolveTargetKey(config.targetType));
+    const image = firmwareDocument.getTarget('cpu1');
     if (!image) {
-      return { success: false, error: '当前固件中未找到对应目标' };
+      return { success: false, error: '当前固件中未找到 CPU1 目标' };
     }
 
     const appInfoResult = image.parseAppInfo(address);

@@ -113,6 +113,47 @@ body {
   border: 1px solid #ffeeba;
 }
 
+.target-checklist {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.target-check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--light-color);
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s, opacity 0.2s;
+}
+
+.target-check-item:hover {
+  border-color: var(--primary-color);
+  background: #eef5ff;
+}
+
+.target-check-item input {
+  margin: 0;
+}
+
+.target-check-item.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: #f1f3f5;
+}
+
+.target-check-item.disabled:hover {
+  border-color: var(--border-color);
+  background: #f1f3f5;
+}
+
+#flashTargetHint {
+  margin-top: 0.75rem;
+}
+
 .form-control {
   width: 100%;
   padding: 0.5rem;
@@ -172,7 +213,45 @@ body {
   gap: 0.5rem;
 }
 
+.appinfo-toolbar {
+  grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1.2fr);
+  align-items: stretch;
+  margin-bottom: 1rem;
+}
+
+.appinfo-toolbar .form-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-bottom: 0;
+}
+
+.appinfo-toolbar-field label {
+  min-height: 22px;
+}
+
+.appinfo-toolbar-button,
+.appinfo-toolbar-note {
+  margin-bottom: 0;
+}
+
+.appinfo-toolbar-button .btn {
+  width: 100%;
+  min-height: 38px;
+}
+
+.appinfo-status {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  margin-top: auto;
+}
+
 @media (max-width: 900px) {
+  .appinfo-toolbar {
+    grid-template-columns: 1fr;
+  }
+
   .appinfo-grid {
     grid-template-columns: 1fr;
   }

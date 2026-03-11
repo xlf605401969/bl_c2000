@@ -184,6 +184,8 @@
 仓库中提供了一个可直接用于界面验证的示例文件：
 
 - `examples/sample_bundle.hex2`
+- `examples/sample_cpu1_appinfo.hex2`
+- `examples/sample_multi_target_demo.hex2`
 
 建议的验证步骤：
 
@@ -198,6 +200,58 @@
 
 - 该示例主要用于验证 HEX2 解析、多目标拆分和内存浏览器显示。
 - 其中 `cpu2` 与 `config` 目标当前用于查看和解析，不建议用于实际烧录。
+
+## 示例7：验证固件 AppInfo 弹窗
+
+仓库中提供了一组专门用于验证 CPU1 AppInfo 的示例文件：
+
+- `examples/sample_cpu1_appinfo_low.hex`
+- `examples/sample_cpu1_appinfo_high.hex`
+- `examples/sample_cpu1_appinfo.hex2`
+
+建议的验证步骤：
+
+1. 启动应用
+2. 选择以下任一方式加载固件：
+   - 传统 HEX：选择 `sample_cpu1_appinfo_low.hex` 和 `sample_cpu1_appinfo_high.hex`
+   - HEX2：选择 `sample_cpu1_appinfo.hex2`
+3. 点击“查看固件AppInfo”按钮
+4. 保持地址为 `0x088000`
+5. 点击“解析CPU1 AppInfo”
+6. 确认弹窗中显示以下字段：
+   - Magic：`0xB16B00B5`
+   - 有效标志：`0xAA55 (有效)`
+   - 版本：`v1.7`
+   - 起始地址：`0x00088040`
+   - 长度：`256`
+   - Git Tag：`sample-appinfo-demo`
+
+说明：
+
+- 该弹窗当前固定只解析 CPU1 对应区域。
+- 这个示例适合回归验证 AppInfo 弹窗、HEX2/传统 HEX 兼容性，以及地址读取逻辑。
+
+## 示例8：验证多目标 HEX2 烧录与浏览
+
+若需要同时验证 CPU1、CM、CPU2 和自定义段，可使用：
+
+- `examples/sample_multi_target_demo.hex2`
+
+该示例包含：
+
+- `cpu1`：带 AppInfo 的主固件镜像
+- `cm`：CM 示例镜像
+- `cpu2`：CPU2 示例镜像
+- `config`：仅供浏览的自定义配置段
+
+建议的验证步骤：
+
+1. 在“固件来源”中选择“HEX2组合文件”
+2. 选择 `examples/sample_multi_target_demo.hex2`
+3. 在“目标选择”中切换当前查看目标，确认内存浏览器内容变化
+4. 点击“查看固件AppInfo”，确认仍能在 CPU1 的 `0x088000` 位置读到 AppInfo
+5. 在“烧录目标”区域多选 `CPU2`、`CM核`、`主MCU`
+6. 观察启动烧录时的目标顺序应为 `CPU2 -> CM -> CPU1`
 
 ## 常见场景
 
